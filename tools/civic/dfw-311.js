@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sodaQuery, sodaAddressLike, sodaTextLike, sodaTextEq, encodeCursor, decodeCursor } from "../../lib/soda.js";
+import { sodaQuery, sodaAddressLike, sodaTextLike, sodaTextEqCI, encodeCursor, decodeCursor } from "../../lib/soda.js";
 import { SODA, requireVerified } from "../../lib/sources.js";
 import { resolveCityJurisdiction, streetPart } from "../../lib/metro-router.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
@@ -18,18 +18,19 @@ export const dfw311 = {
   tier: "core",
   description: withAttributionTag(
     "City of Dallas only (v0.1). Search Dallas 311 service requests by address " +
-      "and/or type (code complaints, potholes, illegal dumping, dead animals, " +
-      "etc.). Returns request number, type, department, status, dates, and " +
-      "council district. Use for neighborhood quality-of-life research. " +
+      "and/or type. Types use the city's official names -- potholes are " +
+      '"street repair"; also "illegal dumping", "animal loose", "parking", "noise". ' +
+      "Returns request number, type, department, status, dates, and council " +
+      "district. Use for neighborhood quality-of-life research. " +
       "Authoritative source: City of Dallas Open Data."
   ),
   inputSchema: {
     address: z.string().min(3).optional()
       .describe('Street address, contains-match. Example: "1500 Marilla St".'),
     service_type: z.string().min(2).optional()
-      .describe('Free-text type filter, e.g. "pothole", "illegal dumping", "code".'),
+      .describe('Contains-match on the official type name, e.g. "street repair" (= potholes), "illegal dumping", "animal loose".'),
     status: z.string().min(2).optional()
-      .describe('Filter by status, e.g. "Open", "Closed", "In Progress".'),
+      .describe('"open" (New/In Progress/Escalated/On Hold), "closed", or an exact status like "In Progress".'),
     since_year: z.number().int().min(2020).max(2100).optional()
       .describe("Only requests created on/after this year. Defaults to 2 years back."),
     city: z.enum(["dallas", "auto"]).optional()
@@ -59,7 +60,7 @@ export const dfw311 = {
     // addresses, so a full "St City TX ZIP" input would match zero rows.
     if (address) where.push(sodaAddressLike(DS_META.addressField, streetPart(address) || address));
     if (service_type) where.push(sodaTextLike(DS_META.typeField, service_type));
-    if (status) where.push(sodaTextEq(DS_META.statusField, status));
+    if (status) where.push(statusClause(DS_META.statusField, status));
     const effectiveSince = since_year ?? new Date().getFullYear() - 2;
     where.push(`${DS_META.dateField} >= '${effectiveSince}-01-01T00:00:00.000'`);
 
@@ -95,6 +96,18 @@ export const dfw311 = {
     };
   },
 };
+
+/**
+ * The dataset has no literal "Open" status -- open-ish rows are New /
+ * In Progress / Escalated / On Hold. Map the natural "open"/"closed" inputs
+ * onto that vocabulary; anything else is an exact case-insensitive match.
+ */
+function statusClause(field, status) {
+  const s = String(status).trim().toLowerCase();
+  if (s === "open") return `upper(${field}) not like 'CLOSED%' AND upper(${field}) != 'CANCELED'`;
+  if (s === "closed") return `upper(${field}) like 'CLOSED%'`;
+  return sodaTextEqCI(field, status);
+}
 
 function normalize(r) {
   return {
@@ -148,6 +161,15 @@ function formatResults(p, jur, nextCursor) {
   const top = Object.entries(byType).sort((a, b) => b[1] - a[1]).slice(0, 5)
     .map(([t, n]) => `${t} (${n})`).join(", ");
   if (top) lines.push(`**Top types:** ${top}`, "");
+
+  if (p.count === 0 && p.query.service_type) {
+    lines.push(
+      "No matches. Type filters contain-match the city's OFFICIAL type names " +
+        '(e.g. potholes are filed under "Street Repair"). Try a broader or ' +
+        "official term, or drop the type filter.",
+      ""
+    );
+  }
 
   for (const r of p.results) {
     lines.push(`## ${r.created_date ?? "(no date)"} — ${r.type ?? "311 Request"}`);

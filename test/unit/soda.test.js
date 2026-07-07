@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sodaAddressLike, sodaTextLike, sodaTextEq } from "../../lib/soda.js";
+import { sodaAddressLike, sodaTextLike, sodaTextEq, sodaTextEqCI } from "../../lib/soda.js";
 
 test("sodaAddressLike: uppercases + escapes quotes", () => {
   assert.equal(
@@ -39,4 +39,18 @@ test("sodaTextEq: throws on missing args", () => {
   assert.throws(() => sodaTextEq("", "x"));
   assert.throws(() => sodaTextEq("f", ""));
   assert.throws(() => sodaTextEq("f", null));
+});
+
+test("sodaTextEqCI: lowercase input matches stored mixed case", () => {
+  // status:"open" must match rows stored as "Open" (regression: dfw_311's
+  // status filter was a case-sensitive exact match -> silent zero results).
+  assert.equal(sodaTextEqCI("status", "open"), "upper(status) = 'OPEN'");
+  assert.equal(sodaTextEqCI("status", "In Progress"), "upper(status) = 'IN PROGRESS'");
+});
+
+test("sodaTextEqCI: escapes single quote and throws on missing args", () => {
+  assert.equal(sodaTextEqCI("name", "o'hara"), "upper(name) = 'O''HARA'");
+  assert.throws(() => sodaTextEqCI("", "x"));
+  assert.throws(() => sodaTextEqCI("f", ""));
+  assert.throws(() => sodaTextEqCI("f", null));
 });

@@ -61,3 +61,16 @@ test("dfw_tea_schools: requires at least one filter (no network)", async () => {
   assert.equal(res.isError, true);
   assert.match(res.content[0].text, /requires at least one/);
 });
+
+test("dfw_tea_schools: flipping the source to verified:false disables the tool", async () => {
+  const { SODA } = await import("../../lib/sources.js");
+  SODA.texas.teaRatings.verified = false;
+  try {
+    await assert.rejects(
+      dfwTeaSchools.handler({ district: "Dallas ISD", limit: 5 }),
+      /not verified/
+    );
+  } finally {
+    SODA.texas.teaRatings.verified = true;
+  }
+});

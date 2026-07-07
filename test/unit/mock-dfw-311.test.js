@@ -114,6 +114,55 @@ test("dfw_311: geocode + city-limits PIP confirms Dallas, then queries SODA", as
   assert.equal(payload.nextCursor, null);
 });
 
+test("dfw_311: status 'open' maps to the dataset's real vocabulary", async () => {
+  // The dataset has NO literal "Open" status (rows are New / In Progress /
+  // Escalated / On Hold / Closed*), so a plain equality on "open" -- even
+  // case-insensitive -- silently returns zero rows.
+  let capturedWhere = null;
+  mockAgent
+    .get("https://www.dallasopendata.com")
+    .intercept({
+      path: (p) => {
+        if (!p.startsWith("/resource/d7e7-envw.json")) return false;
+        capturedWhere = decodeURIComponent(p.replace(/\+/g, " "));
+        return true;
+      },
+      method: "GET",
+    })
+    .reply(200, [ROW], { headers: { "content-type": "application/json" } });
+
+  const res = await dfw311.handler({ status: "open", city: "dallas", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  assert.ok(
+    capturedWhere.includes("upper(status) not like 'CLOSED%'"),
+    `expected open-bucket status clause, got: ${capturedWhere}`
+  );
+});
+
+test("dfw_311: exact status is matched case-insensitively", async () => {
+  let capturedWhere = null;
+  mockAgent
+    .get("https://www.dallasopendata.com")
+    .intercept({
+      path: (p) => {
+        if (!p.startsWith("/resource/d7e7-envw.json")) return false;
+        capturedWhere = decodeURIComponent(p.replace(/\+/g, " "));
+        return true;
+      },
+      method: "GET",
+    })
+    .reply(200, [ROW], { headers: { "content-type": "application/json" } });
+
+  const res = await dfw311.handler({ status: "in progress", city: "dallas", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  assert.ok(
+    capturedWhere.includes("upper(status) = 'IN PROGRESS'"),
+    `expected case-insensitive status clause, got: ${capturedWhere}`
+  );
+});
+
 test("dfw_311: geocoded point OUTSIDE Dallas limits is refused", async () => {
   mockGeocode();
   mockCityLimits(null); // point in no City-of-Dallas polygon

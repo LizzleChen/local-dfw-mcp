@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sodaQuery, sodaTextEq } from "../../lib/soda.js";
-import { SODA } from "../../lib/sources.js";
+import { SODA, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
 
 /**
@@ -42,6 +42,7 @@ export const dfwTeaSchools = {
     limit: z.number().int().min(1).max(100).default(25).describe("Max results (default 25)."),
   },
   async handler(args) {
+    requireVerified(SODA.texas.teaRatings, "dfw_tea_schools");
     const { campus, district, county, rating, school_type, limit } = args;
     if (!campus && !district && !county) {
       return errorContent("dfw_tea_schools requires at least one of: campus, district, or county.");

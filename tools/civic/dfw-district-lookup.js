@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { geocodeAddress } from "../../lib/geocode.js";
 import { queryPointInPolygon } from "../../lib/arcgis.js";
-import { ARCGIS } from "../../lib/sources.js";
+import { ARCGIS, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
 
 /**
@@ -14,23 +14,27 @@ import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
 const LAYERS = {
   county: {
     label: "County",
+    entry: ARCGIS.txCounties,
     url: ARCGIS.txCounties.url,
     field: ARCGIS.txCounties.nameField,
     extra: ARCGIS.txCounties.fipsField,
   },
   city_limits: {
     label: "City limits (City of Dallas layer)",
+    entry: ARCGIS.dallasCityLimits,
     url: ARCGIS.dallasCityLimits.url,
     field: ARCGIS.dallasCityLimits.cityField,
   },
   council_district: {
     label: "Dallas City Council District",
+    entry: ARCGIS.dallasCouncilDistricts,
     url: ARCGIS.dallasCouncilDistricts.url,
     field: ARCGIS.dallasCouncilDistricts.districtField,
     extra: ARCGIS.dallasCouncilDistricts.memberField,
   },
   school_district: {
     label: "School District (ISD)",
+    entry: ARCGIS.txSchoolDistricts,
     url: ARCGIS.txSchoolDistricts.url,
     field: ARCGIS.txSchoolDistricts.nameField,
   },
@@ -63,11 +67,14 @@ export const dfwDistrictLookup = {
     const errors = {};
     const entries = Object.entries(LAYERS);
     const settled = await Promise.allSettled(
-      entries.map(([, layer]) =>
-        queryPointInPolygon(layer.url, geo.lng, geo.lat, {
+      entries.map(async ([key, layer]) => {
+        // Per-layer guard: a layer flipped to verified:false in lib/sources.js
+        // is disabled here (surfaces as a per-layer error, not a dead tool).
+        requireVerified(layer.entry, `dfw_district_lookup (${key})`);
+        return queryPointInPolygon(layer.url, geo.lng, geo.lat, {
           outFields: layer.extra ? [layer.field, layer.extra] : layer.field,
-        })
-      )
+        });
+      })
     );
 
     settled.forEach((res, i) => {
