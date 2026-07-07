@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.LizzleChen/local-dfw-mcp",
+  "description": "Your AI's DFW guide: Dallas 311, crime, flood zones, schools, utilities, districts. No API keys.",
+  "repository": {
+    "url": "https://github.com/LizzleChen/local-dfw-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "local-dfw-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "DFW_SODA_APP_TOKEN",
+          "description": "Optional Socrata app token — raises the shared per-IP rate limit for Dallas open-data queries. Free at https://dev.socrata.com/register. Works fine without it.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
