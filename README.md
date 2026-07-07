@@ -15,7 +15,7 @@ from authoritative City of Dallas, county, state, and federal sources.
   "mcpServers": {
     "local-dfw": {
       "command": "npx",
-      "args": ["-y", "github:LizzleChen/local-dfw-mcp"]
+      "args": ["-y", "local-dfw-mcp"]
     }
   }
 }
