@@ -1,0 +1,74 @@
+{
+  "name": "local-dfw-mcp",
+  "version": "0.1.0",
+  "description": "Your AI's local guide to Dallas-Fort Worth: answer civic and property questions (311 requests, crime, flood zone, schools, water/sewer provider, council district) from authoritative City of Dallas + Dallas/Tarrant/Collin/Denton County sources. No API keys.",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "local-dfw-mcp": "index.js"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "tools/",
+    "resources/",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "prepublishOnly": "npm run test:unit",
+    "test": "node --test test/unit/*.test.js",
+    "test:unit": "node --test test/unit/*.test.js",
+    "test:handshake": "node test/mcp-handshake.js",
+    "test:smoke:311": "node test/smoke-311.js",
+    "test:smoke:crime": "node test/smoke-crime.js",
+    "test:smoke:tea": "node test/smoke-tea-schools.js",
+    "test:smoke:flood": "node test/smoke-fema-flood.js",
+    "test:smoke:nws": "node test/smoke-nws-alerts.js",
+    "test:smoke:utility": "node test/smoke-utility-providers.js",
+    "test:smoke:district": "node test/smoke-district-lookup.js",
+    "test:smoke": "node test/smoke-311.js && node test/smoke-crime.js && node test/smoke-tea-schools.js && node test/smoke-fema-flood.js && node test/smoke-nws-alerts.js && node test/smoke-utility-providers.js && node test/smoke-district-lookup.js"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "claude",
+    "anthropic",
+    "llm-tools",
+    "dallas",
+    "fort-worth",
+    "dfw",
+    "texas",
+    "dallas-county",
+    "tarrant-county",
+    "collin-county",
+    "denton-county",
+    "civic-data",
+    "open-data",
+    "socrata",
+    "gis",
+    "flood-zone",
+    "schools",
+    "311",
+    "crime"
+  ],
+  "author": "LizzleChen",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "undici": "^6.19.8"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}

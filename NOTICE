@@ -1,0 +1,17 @@
+local-dfw-mcp
+Copyright 2026 LizzleChen
+
+This product includes software ported from local-austin-mcp
+(https://github.com/mindwear-capitian/local-austin-mcp),
+Copyright Ed Neuhaus / Neuhaus Realty Group LLC, Apache License 2.0.
+
+The ported files (lib/register.js, lib/retry.js, lib/soda.js, lib/arcgis.js,
+lib/cache.js, lib/semaphore.js, lib/geocode.js, lib/fema-flood.js,
+lib/request-context.js, lib/logger.js, lib/version.js, lib/output-schemas.js,
+lib/resources.js, lib/tiers.js, lib/utility-ccn.js, and the tool/test scaffolding)
+carry their original attribution headers noting the changes made for this project.
+
+"Neuhaus Realty Group" and the Neuhaus marks are trademarks of Neuhaus Realty
+Group LLC. The Apache License 2.0 grants no trademark rights (see LICENSE
+section 6). This project uses none of those marks. Please keep this NOTICE and
+the in-file attribution when you redistribute or build on this software.
