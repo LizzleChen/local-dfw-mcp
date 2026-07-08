@@ -5,9 +5,9 @@ Your AI's local guide to Dallas–Fort Worth. An open-source
 client) useful local information about the DFW metroplex — what's being
 reported around an address (311, police incidents), weather alerts, flood
 zones, school ratings, water/sewer provider, council district — with **events
-(city activities, shows, sports, performances) and traffic information (live
-incidents, road closures, road projects, traffic counts) next on the
-roadmap**. Everything comes from authoritative
+(city activities, shows, sports, performances), traffic information (live
+incidents, road closures, road projects, traffic counts), and county property
+appraisals next on the roadmap**. Everything comes from authoritative
 city, county, state, and federal sources. **No API keys required.**
 
 This is an informational local guide, not a system of record — every answer
@@ -62,9 +62,14 @@ In priority order — sources already live-verified against the real portals:
    minutes-fresh feed), street/lane closures from right-of-way permits, TxDOT
    annual traffic counts ("how busy is this road?"), and TxDOT + city road
    projects ("what are they doing to this highway, and when does it end?").
-3. **Fort Worth breadth** — permits, code violations, and crime for the
+3. **`dfw_appraisal`** — county appraisal record for an address: owner,
+   appraised land/improvement/market value (2025 certified roll), year built,
+   land use, acreage — for all four core counties, via the State of Texas's
+   official republication of appraisal-district data. Appraised value is not
+   a tax bill; verify with the appraisal district.
+4. **Fort Worth breadth** — permits, code violations, and crime for the
    metroplex's second city (its portal is fresh where Dallas's is stale).
-4. **`dfw_property_360`** — one composed "around this address" briefing that
+5. **`dfw_property_360`** — one composed "around this address" briefing that
    fans out across the relevant tools.
 
 ## Wrong-city protection
