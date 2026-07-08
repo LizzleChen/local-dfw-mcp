@@ -15,9 +15,49 @@ confirmed with a live query on 2026-07-06/07. Machine-readable twin:
 | `dfw_nws_alerts` | NWS API | `api.weather.gov/alerts/active?point=...` | live TX alerts query OK. |
 | `dfw_utility_providers` | Texas PUC CCN (ArcGIS, owner `gis.user.puct`) | Water `Water_CCN_Service_Areas/FeatureServer/210`, Sewer `Sewer_CCN_Service_Areas/FeatureServer/230` on services6.arcgis.com | PIP at a Frisco point returned `CITY OF FRISCO` (CCN 11772); 34 water polygons in Dallas County. Note: dense urban cores served directly by a city utility may return no CCN polygon. |
 | `dfw_district_lookup` | Dallas GIS + statewide ArcGIS | Council: `CouncilAreas/FeatureServer/0` (services2.arcgis.com/rwnOSbfKSwyTBcwN); City limits: `CityLimits/FeatureServer/0` (same org); Counties: TPP_GIS `Texas_County_Boundaries/FeatureServer/0`; ISDs: TEA `Districts1920/FeatureServer/0` | PIP at 1500 Marilla St returned District 2 / Jesse Moreno and CITY=Dallas. |
+| `dfw_appraisal` | TxGIO StratMap Land Parcels (ArcGIS) — county appraisal-district (CAD/CAMA) data republished by the Texas Geographic Information Office | `feature.geographic.texas.gov/arcgis/rest/services/Parcels/stratmap_land_parcels_48_most_recent/MapServer/0` | See detailed evidence below. |
 | — geocoding | U.S. Census geocoder | `geocoding.geo.census.gov` | 1500 Marilla St resolved OK. |
 | `dfw_events` (tier 1) | CivicPlus calendar RSS (`/RSSFeed.aspx?ModID=58&CID=All-calendar.xml`) | `dallasparks.org` (Dallas Parks & Rec — **no citywide Dallas feed exists**), `garlandtx.gov`, `friscotexas.gov`, `cityofmesquite.com` | All four verified live 2026-07-07 (HTTP 200; 10-105 KB; populated `calendarEvent:*` tags, stable `Calendar.aspx?EID=` links). Probed and rejected: Irving (redirect → 403), Plano (different CMS), Fort Worth + Arlington (bot-block 403). CMS feeds churn — all four are in `dfw_health`. |
 | `dfw_events` (tier 2) | Ticketmaster Discovery API | `app.ticketmaster.com/discovery/v2/events.json`, DMA 222 (Dallas-Fort Worth) | Optional `DFW_TICKETMASTER_API_KEY` (free, 5000 calls/day / 5 rps); keyless installs get city calendars + a hint. Every event links its ticketmaster.com page (attribution). Commercial ToS: personal/non-resale API use — re-read terms before any hosted redistribution. |
+
+### `dfw_appraisal` — TxGIO StratMap Land Parcels (verified 2026-07-07)
+
+The State of Texas (TxGIO) republishes county appraisal-district (CAD/CAMA) data
+statewide under a standardized schema. This unblocks the previously-deferred
+`dfw_parcels` work without ever touching the DCAD/TAD portals.
+
+- **Endpoint:** `feature.geographic.texas.gov/arcgis/rest/services/Parcels/`
+  `stratmap_land_parcels_48_most_recent/MapServer/0` — public, keyless.
+- **Access shape (dictates the design):** the `/query` operation is **DISABLED**
+  on the public layer (`400 "requested capability is not supported"`); the
+  vintage-named twins (`stratmap23/24/25_...`) are token-gated. Only MapServer
+  **`/identify`** works keyless. So the tool is address-first by construction
+  (Census geocode → identify), with **no owner-name / free-text search** — a
+  deliberate people-search-misuse reduction.
+- **identify params (all required):** `geometry=lng,lat`,
+  `geometryType=esriGeometryPoint`, `sr=4326`, `layers=all:0`, `tolerance` (1–2),
+  `mapExtent` (small bbox around the point), `imageDisplay=400,400,96`,
+  `returnGeometry=false`, `f=json`.
+- **Payload quirk:** every attribute value comes back as a **STRING under
+  UPPERCASE keys**; blank fields are whitespace-padded (`" "`). Normalized in
+  `tools/property/dfw-appraisal.js`.
+- **Sample (Dallas City Hall, `-96.7970,32.7767`):** `PROP_ID
+  00000101154000000`, `OWNER_NAME "DALLAS CITY OF"`, `LAND_VALUE 32032500`,
+  `IMP_VALUE 8420`, `MKT_VALUE 32040920`, `SITUS_ADDR "1400 YOUNG ST ,DALLAS, TX
+  75201"`, `SOURCE "DALLAS APPRAISAL DISTRICT"`, `DATE_ACQ 20250801`, `COUNTY
+  DALLAS`, `FIPS 48113`, `TAX_YEAR 2025`.
+- **All 4 core counties verified, all `TAX_YEAR 2025`** (current certified roll):
+  Dallas (`DATE_ACQ` 2025-08-01), Tarrant (2025-07-01), Collin (2025-01-01),
+  Denton (2025-01-01); each `SOURCE` = the county's appraisal district.
+- **Value quirk:** some Tarrant parcels publish `MKT_VALUE` (or LAND/IMP) as `0`
+  (TAD publication quirk) — the tool renders these as "value unavailable", never
+  as `$0`. `YEAR_BUILT` is often blank.
+- **Caveats encoded in output:** 2025 certified roll is an annual snapshot (not
+  live); **appraised value ≠ tax bill** (exemptions/rates come from the county
+  tax assessor-collector, not this layer); FCRA "not a consumer report" notice.
+- **`copyrightText`:** "Texas Geographic Information Office, Various Counties,
+  Various Vendors" → attributed as TxGIO StratMap Land Parcels (data from county
+  appraisal districts). MAIL_* (owner mailing) fields are omitted from output.
 
 ## Excluded / deferred (do NOT wire without re-verification)
 
@@ -41,11 +81,15 @@ confirmed with a live query on 2026-07-06/07. Machine-readable twin:
 Newest Dallas code-violations dataset is stale since **2025-01-31**. Revisit
 when the city resumes publication.
 
-### `dfw_parcels` — deferred
+### `dfw_parcels` — UNBLOCKED (folded into `dfw_appraisal`)
 
-No authoritative Dallas County (or other core-county) parcel FeatureServer was
-found. CAD portals (DCAD/TAD) have anti-bot/ToS concerns; ownership/value data
-is out of scope until a clean source exists.
+Originally deferred: no authoritative core-county parcel FeatureServer was found
+and CAD portals (DCAD/TAD) have anti-bot/ToS concerns. **Resolved 2026-07-07** by
+the TxGIO StratMap Land Parcels service (see the `dfw_appraisal` section above),
+which carries CAD-sourced situs, land use, geometry-match, owner, and values for
+all 4 core counties keyless via `identify`. The parcel record and its appraised
+values now ship together as `dfw_appraisal`; the DCAD/TAD portals are never
+touched.
 
 ## Env vars
 

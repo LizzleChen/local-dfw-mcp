@@ -11,6 +11,7 @@ things like:
 - 🚰 *"Who provides water and sewer at this address?"*
 - 🕳️ *"Any potholes or illegal dumping reported on my street?"*
 - ⛈️ *"Are there severe weather alerts for Dallas right now?"*
+- 🏠 *"What's this house appraised at, per the county?"*
 
 Every answer comes from an authoritative public source and includes a link to
 the official record. **No API keys required** — one optional free key unlocks
@@ -45,6 +46,7 @@ Requires Node ≥ 20. That's it — restart your client and start asking.
 | `dfw_nws_alerts` | national | Active NWS weather alerts for a DFW point |
 | `dfw_utility_providers` | Texas | Who provides water/sewer at an address (PUC CCN) |
 | `dfw_district_lookup` | DFW | County, City-of-Dallas council district + member, ISD for an address |
+| `dfw_appraisal` | Texas (4 core counties verified) | County appraisal record for an address: owner, land/improvement/market value (2025 certified roll), year built, land use, acreage |
 | `dfw_health` | — | Pings every upstream, reports per-source status |
 | `about` | — | Version, coverage, license, provenance |
 
@@ -91,7 +93,7 @@ nothing.
   wrong city's data.
 - **No stale data.** Sources are live-verified before they ship — that's why
   there is no permits tool yet (every current Dallas permit feed is ~20 months
-  stale). Also pending: code cases, parcels, suburb portals, and the composed
+  stale). Also pending: code cases, suburb portals, and the composed
   `dfw_property_360`. Details in
   [resources/datasets-index.md](resources/datasets-index.md).
 - **Verify at the source.** Every response carries a `source_url` to the
@@ -99,10 +101,12 @@ nothing.
 
 ## Important notices
 
-- **Not a consumer report.** `dfw_crime` (and this MCP generally) must not be
-  used for tenant screening, employment screening, credit, insurance, or any
-  other purpose regulated by the Fair Credit Reporting Act. Crime addresses are
-  block-level, privacy-rounded upstream.
+- **Not a consumer report.** `dfw_crime`, `dfw_appraisal` (and this MCP
+  generally) must not be used for tenant screening, employment screening,
+  credit, insurance, or any other purpose regulated by the Fair Credit Reporting
+  Act. Crime addresses are block-level, privacy-rounded upstream. `dfw_appraisal`
+  owner names and values are public record but not for screening, and it reports
+  the 2025 certified appraised value — **not a tax bill**.
 - **Prompt injection.** 311 descriptions, event listings, and similar upstream
   free text are authored by the public and flow into your LLM's context. This
   server renders them as quoted/table data, but treat any instructions
