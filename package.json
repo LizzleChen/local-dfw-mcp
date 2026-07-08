@@ -1,7 +1,7 @@
 {
   "name": "local-dfw-mcp",
-  "version": "0.1.1",
-  "description": "Your AI's local guide to Dallas-Fort Worth: answer civic and property questions (311 requests, crime, flood zone, schools, water/sewer provider, council district) from authoritative City of Dallas + Dallas/Tarrant/Collin/Denton County sources. No API keys.",
+  "version": "0.2.0",
+  "description": "Your AI's local guide to Dallas-Fort Worth: what's happening around here (city calendars + optional Ticketmaster concerts/sports/theater), 311 requests, crime, flood zone, schools, water/sewer provider, council district — from authoritative city/county/state sources. No API keys required for the base install.",
   "main": "index.js",
   "type": "module",
   "bin": {
@@ -56,6 +56,7 @@
     "tarrant-county",
     "collin-county",
     "denton-county",
+    "events",
     "civic-data",
     "open-data",
     "socrata",
