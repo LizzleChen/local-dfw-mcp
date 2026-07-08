@@ -1,11 +1,16 @@
 # local-dfw-mcp
 
 Your AI's local guide to Dallas–Fort Worth. An open-source
-[MCP](https://modelcontextprotocol.io) server that lets Claude (and any MCP
-client) answer DFW civic and property questions — 311 requests, police
-incidents, flood zone, school ratings, water/sewer provider, council district —
-from authoritative City of Dallas, county, state, and federal sources.
-**No API keys required.**
+[MCP](https://modelcontextprotocol.io) server that gives Claude (and any MCP
+client) useful local information about the DFW metroplex — what's being
+reported around an address (311, police incidents), weather alerts, flood
+zones, school ratings, water/sewer provider, council district — with **city
+events/activities and traffic information (live incidents, road closures,
+traffic counts) next on the roadmap**. Everything comes from authoritative
+city, county, state, and federal sources. **No API keys required.**
+
+This is an informational local guide, not a system of record — every answer
+links back to the official source so you can verify.
 
 ## Install
 
@@ -38,10 +43,26 @@ Requires Node ≥ 20.
 | `about` | — | Version, coverage, license, provenance |
 
 Not in v0.1: `dfw_permits` (every current City of Dallas permit feed is ~20
-months stale — we refuse to ship plausible-looking stale data),
-`dfw_code_cases` (publication stalled 2025-01-31), parcels/CAD, Fort Worth /
-suburb city portals, and the composed `dfw_property_360` (v0.2). Details in
+months stale — we refuse to ship plausible-looking stale data; the city's live
+tracking moved to a portal without a public API), `dfw_code_cases`
+(publication stalled 2025-01-31), parcels/CAD, Fort Worth / suburb city
+portals, and the composed `dfw_property_360`. Details in
 [resources/datasets-index.md](resources/datasets-index.md).
+
+## Roadmap (v0.2)
+
+In priority order — sources already live-verified against the real portals:
+
+1. **`dfw_events`** — official city event calendars (rec programs, community
+   meetings, city markets/festivals) for Dallas Parks & Rec, Garland, Frisco
+   and growing. Official city feeds only — not a concert/ticketing search.
+2. **`dfw_traffic`** — live traffic incidents (Fort Worth publishes a
+   minutes-fresh feed), street/lane closures from right-of-way permits, and
+   TxDOT annual traffic counts ("how busy is this road?").
+3. **Fort Worth breadth** — permits, code violations, and crime for the
+   metroplex's second city (its portal is fresh where Dallas's is stale).
+4. **`dfw_property_360`** — one composed "around this address" briefing that
+   fans out across the relevant tools.
 
 ## Wrong-city protection
 
