@@ -4,10 +4,11 @@ Your AI's local guide to Dallas–Fort Worth. An open-source
 [MCP](https://modelcontextprotocol.io) server that gives Claude (and any MCP
 client) useful local information about the DFW metroplex — what's being
 reported around an address (311, police incidents), weather alerts, flood
-zones, school ratings, water/sewer provider, council district — with **events
-(city activities, shows, sports, performances), traffic information (live
-incidents, road closures, road projects, traffic counts), and county property
-appraisals next on the roadmap**. Everything comes from authoritative
+zones, school ratings, water/sewer provider, council district, and county
+appraisal values (owner, appraised value, land use) — with **events (city
+activities, shows, sports, performances) and traffic information (live
+incidents, road closures, road projects, traffic counts) next on the
+roadmap**. Everything comes from authoritative
 city, county, state, and federal sources. **No API keys required.**
 
 This is an informational local guide, not a system of record — every answer
@@ -29,7 +30,7 @@ links back to the official source so you can verify.
 
 Requires Node ≥ 20.
 
-## Tools (v0.1)
+## Tools
 
 | Tool | Coverage | What it answers |
 |---|---|---|
@@ -40,6 +41,7 @@ Requires Node ≥ 20.
 | `dfw_nws_alerts` | national | Active NWS weather alerts for a DFW point |
 | `dfw_utility_providers` | Texas | Who provides water/sewer at an address (PUC CCN) |
 | `dfw_district_lookup` | DFW | County, City-of-Dallas council district + member, ISD for an address |
+| `dfw_appraisal` | Texas (4 core counties verified) | County appraisal record for an address: owner, land/improvement/market value (2025 certified roll), year built, land use, acreage |
 | `dfw_health` | — | Pings every upstream, reports per-source status |
 | `about` | — | Version, coverage, license, provenance |
 
@@ -62,14 +64,9 @@ In priority order — sources already live-verified against the real portals:
    minutes-fresh feed), street/lane closures from right-of-way permits, TxDOT
    annual traffic counts ("how busy is this road?"), and TxDOT + city road
    projects ("what are they doing to this highway, and when does it end?").
-3. **`dfw_appraisal`** — county appraisal record for an address: owner,
-   appraised land/improvement/market value (2025 certified roll), year built,
-   land use, acreage — for all four core counties, via the State of Texas's
-   official republication of appraisal-district data. Appraised value is not
-   a tax bill; verify with the appraisal district.
-4. **Fort Worth breadth** — permits, code violations, and crime for the
+3. **Fort Worth breadth** — permits, code violations, and crime for the
    metroplex's second city (its portal is fresh where Dallas's is stale).
-5. **`dfw_property_360`** — one composed "around this address" briefing that
+4. **`dfw_property_360`** — one composed "around this address" briefing that
    fans out across the relevant tools.
 
 ## Wrong-city protection
@@ -97,10 +94,12 @@ nothing.
 
 ## Important notices
 
-- **Not a consumer report.** `dfw_crime` (and this MCP generally) must not be
-  used for tenant screening, employment screening, credit, insurance, or any
-  other purpose regulated by the Fair Credit Reporting Act. Crime addresses are
-  block-level, privacy-rounded upstream.
+- **Not a consumer report.** `dfw_crime`, `dfw_appraisal` (and this MCP
+  generally) must not be used for tenant screening, employment screening,
+  credit, insurance, or any other purpose regulated by the Fair Credit Reporting
+  Act. Crime addresses are block-level, privacy-rounded upstream. `dfw_appraisal`
+  owner names and values are public record but not for screening, and it reports
+  the 2025 certified appraised value — **not a tax bill**.
 - **Prompt injection.** 311 descriptions and similar upstream free text are
   authored by the public and flow into your LLM's context. This server renders
   them as quoted/table data, but treat any instructions appearing inside

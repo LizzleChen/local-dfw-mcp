@@ -37,6 +37,7 @@ proceeds as City of Dallas but prefixes the response with an explicit
 | `dfw_nws_alerts` | national (NWS); defaults to downtown Dallas |
 | `dfw_utility_providers` | all Texas (PUC CCN boundaries) |
 | `dfw_district_lookup` | county + ISD statewide; council district City of Dallas only |
+| `dfw_appraisal` | Texas statewide (TxGIO StratMap); DFW's 4 core counties verified on the 2025 certified roll. Address-first (geocode → parcel identify); no owner-name/free-text search |
 
 ## Not covered in v0.1
 
@@ -44,7 +45,5 @@ proceeds as City of Dallas but prefixes the response with an explicit
   Dallas permit feed is ~20 months stale. See `dfw://datasets/index`.
 - **Code compliance cases**: deferred — newest Dallas dataset stale since
   2025-01-31.
-- **Parcels / CAD data**: deferred — no authoritative county parcel
-  FeatureServer found.
 - **Fort Worth / Arlington / Plano / Frisco city portals**: v0.2.
 - **Composed `dfw_property_360`**: v0.2.

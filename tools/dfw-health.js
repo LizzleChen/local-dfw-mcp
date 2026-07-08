@@ -42,6 +42,12 @@ const CHECKS = [
     url: "https://services2.arcgis.com/rwnOSbfKSwyTBcwN/arcgis/rest/services/CityLimits/FeatureServer/0?f=json",
   },
   {
+    // TxGIO StratMap parcels (dfw_appraisal). /query is disabled, so we exercise
+    // the identify path we actually use, at the verified Dallas City Hall point.
+    source: "ArcGIS TxGIO StratMap parcels (identify)",
+    url: "https://feature.geographic.texas.gov/arcgis/rest/services/Parcels/stratmap_land_parcels_48_most_recent/MapServer/identify?geometry=-96.7970,32.7767&geometryType=esriGeometryPoint&sr=4326&layers=all:0&tolerance=2&mapExtent=-96.798,32.7757,-96.796,32.7777&imageDisplay=400,400,96&returnGeometry=false&f=json",
+  },
+  {
     source: "U.S. Census geocoder",
     url: "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=Texas&benchmark=Public_AR_Current&format=json",
   },
@@ -79,7 +85,8 @@ export const dfwHealth = {
   tier: "core",
   description:
     "Diagnostic. Pings every upstream data provider this MCP depends on (Dallas " +
-    "Open Data, data.texas.gov, FEMA NFHL, PUC CCN, Dallas GIS, Census, NWS) in " +
+    "Open Data, data.texas.gov, FEMA NFHL, PUC CCN, Dallas GIS, TxGIO StratMap, " +
+    "Census, NWS) in " +
     "parallel with a 3.5s timeout and reports per-source status, HTTP code, and " +
     "latency. Use when many tools return errors to tell which provider is down " +
     "vs which tool is broken.",
