@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.LizzleChen/local-dfw-mcp",
-  "description": "Your AI's DFW guide: local events, Dallas 311, crime, flood zones, schools, utilities, districts.",
+  "description": "Your AI's DFW guide: events, appraisals, Dallas 311, crime, floods, schools, utilities, districts.",
   "repository": {
     "url": "https://github.com/LizzleChen/local-dfw-mcp",
     "source": "github"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "local-dfw-mcp",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "transport": {
         "type": "stdio"
       },
