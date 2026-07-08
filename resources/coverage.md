@@ -41,6 +41,24 @@ No calendar feed exists (verified 2026-07-07) for Plano (different CMS),
 Irving (redirect + 403), Fort Worth and Arlington (bot-blocked). Say
 "not covered" for those cities' official calendars rather than guessing.
 
+## Traffic (`dfw_traffic`)
+
+Four sources, each with **different** coverage -- do not blur them:
+
+| Kind | Coverage | Source |
+|---|---|---|
+| `incidents` | **Fort Worth ONLY** -- no other DFW city publishes a keyless live incident feed | City of Fort Worth "Current Traffic Accidents" (ArcGIS, small rolling table) |
+| `closures` | **Dallas ONLY** | City of Dallas right-of-way (ROW) permits (Socrata, line + point permits merged) |
+| `counts` | Dallas, Tarrant, Collin, Denton counties | TxDOT 5-Year Statewide AADT Traffic Counts (ArcGIS). No road-name field -- `search` is ignored with a note. |
+| `projects` | Dallas, Tarrant, Collin, Denton counties | TxDOT Projects Info (ArcGIS). `search` matches the highway number (`HWY_NBR`). |
+
+`kind="incidents"` with `city` set to anything but `"fortworth"`, or
+`kind="closures"` with `city` set to anything but `"dallas"`, returns a
+"not covered" response instead of a best-effort (and misleading) query — the
+same "no wrong-city silent success" rule used by `dfw_311`/`dfw_crime`. Default
+`kind="all"` merges incidents + closures only; `counts`/`projects` need an
+explicit `kind`.
+
 ## County / statewide / national tools
 
 | Tool | Coverage |

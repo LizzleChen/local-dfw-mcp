@@ -29,6 +29,7 @@ import { dfwUtilityProviders } from "./tools/property/dfw-utility-providers.js";
 import { dfwAppraisal } from "./tools/property/dfw-appraisal.js";
 import { dfwNwsAlerts } from "./tools/environment/dfw-nws-alerts.js";
 import { dfwEvents } from "./tools/events/dfw-events.js";
+import { dfwTraffic } from "./tools/traffic/dfw-traffic.js";
 
 const ALL_TOOLS = [
   aboutTool,
@@ -42,6 +43,7 @@ const ALL_TOOLS = [
   dfwUtilityProviders,
   dfwDistrictLookup,
   dfwAppraisal,
+  dfwTraffic,
 ];
 
 /**
@@ -55,8 +57,8 @@ const OUTPUT_SCHEMAS = Object.freeze({
   dfw_utility_providers: openObjectShape(), // { query, location, water[], sewer[] }
   dfw_district_lookup: openObjectShape(),   // keyed by district type
   dfw_appraisal: openObjectShape(),         // { query, geocoded, count, parcels[] }
-  // dfw_311 / dfw_crime / dfw_events / dfw_tea_schools / dfw_nws_alerts fall
-  // through to searchShape().
+  // dfw_311 / dfw_crime / dfw_events / dfw_tea_schools / dfw_nws_alerts /
+  // dfw_traffic fall through to searchShape().
 });
 
 const SERVER_INSTRUCTIONS = `${ATTRIBUTION_TEXT}
@@ -72,7 +74,9 @@ ROUTING:
     dfw_311; police incidents -> dfw_crime; schools/ratings -> dfw_tea_schools;
     weather alerts -> dfw_nws_alerts; "what's happening / events / things to
     do" -> dfw_events; property value / appraisal / "what's this house worth
-    per the county" / owner + land use -> dfw_appraisal.
+    per the county" / owner + land use -> dfw_appraisal; real-time accidents /
+    street or lane closures / annual traffic counts (AADT) / highway
+    construction projects -> dfw_traffic.
   - COVERAGE LIMITS -- state them plainly, do not guess:
       * dfw_311 and dfw_crime cover the CITY OF DALLAS ONLY. They enforce a
         pre-flight jurisdiction check: for a non-Dallas or unconfirmable-Dallas
@@ -87,6 +91,15 @@ ROUTING:
         dfw_district_lookup, and dfw_appraisal cover the 4 core counties / all of
         Texas / the U.S. (per the tool). dfw_appraisal is address-first (no
         owner-name or free-text search) and returns the 2025 certified roll.
+      * dfw_traffic mixes FOUR sources with DIFFERENT coverage -- state the
+        right one, do not blur them: real-time incidents (kind="incidents")
+        are FORT WORTH ONLY; street/lane closures (kind="closures", from Dallas
+        right-of-way permits) are DALLAS ONLY; annual traffic counts (AADT,
+        kind="counts") and highway construction projects (kind="projects")
+        cover the 4 core counties (Dallas/Tarrant/Collin/Denton). The default
+        kind="all" merges incidents+closures only -- counts/projects need an
+        explicit kind. The AADT layer has no road-name field; do not imply
+        road-name search works for "counts".
   - dfw_permits is NOT shipped in v0.1 (only stale City of Dallas permit feeds
     exist). Do not claim permit coverage.
 
