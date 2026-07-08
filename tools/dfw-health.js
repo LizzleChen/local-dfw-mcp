@@ -9,6 +9,8 @@
 
 import { z } from "zod";
 import { ATTRIBUTION_TAG } from "../lib/attribution.js";
+import { EVENTS_RSS } from "../lib/sources.js";
+import { calendarFeedUrl } from "../lib/civicplus-rss.js";
 
 const TIMEOUT_MS = 3500;
 
@@ -50,6 +52,22 @@ const CHECKS = [
     url: "https://api.weather.gov/alerts/active?area=TX",
     init: { headers: { "User-Agent": "local-dfw-mcp (https://github.com/LizzleChen/local-dfw-mcp)" } },
   },
+  // CivicPlus calendar feeds (dfw_events tier 1). CMS feeds churn more than
+  // Socrata/ArcGIS, and their known failure mode is a bot-blocking 403 (Irving,
+  // Fort Worth) -- so for these a 4xx is NOT "reachable but rejecting", it means
+  // the events tool is broken. strict4xx makes probe() report that as degraded.
+  ...Object.values(EVENTS_RSS).map((feed) => ({
+    source: `CivicPlus calendar RSS (${feed.label})`,
+    url: calendarFeedUrl(feed.base),
+    init: { headers: { "User-Agent": "local-dfw-mcp (https://github.com/LizzleChen/local-dfw-mcp)" } },
+    strict4xx: true,
+  })),
+  {
+    // dfw_events tier 2. Probed keyless: a 401 proves reachability (and is all
+    // we can check without DFW_TICKETMASTER_API_KEY).
+    source: "Ticketmaster Discovery API (key optional)",
+    url: "https://app.ticketmaster.com/discovery/v2/events.json?size=1",
+  },
 ];
 
 async function probe(check) {
@@ -60,7 +78,7 @@ async function probe(check) {
     const res = await fetch(check.url, { ...(check.init || {}), signal: ac.signal });
     const latency_ms = Date.now() - started;
     if (res.ok) return { source: check.source, status: "ok", http: res.status, latency_ms, last_error: null };
-    if (res.status === 400 || res.status === 401 || res.status === 403) {
+    if (!check.strict4xx && (res.status === 400 || res.status === 401 || res.status === 403)) {
       return { source: check.source, status: "ok", http: res.status, latency_ms, last_error: null };
     }
     return { source: check.source, status: res.status >= 500 ? "down" : "degraded", http: res.status, latency_ms, last_error: `${res.status} ${res.statusText}` };
@@ -79,7 +97,8 @@ export const dfwHealth = {
   tier: "core",
   description:
     "Diagnostic. Pings every upstream data provider this MCP depends on (Dallas " +
-    "Open Data, data.texas.gov, FEMA NFHL, PUC CCN, Dallas GIS, Census, NWS) in " +
+    "Open Data, data.texas.gov, FEMA NFHL, PUC CCN, Dallas GIS, Census, NWS, " +
+    "CivicPlus city calendars, Ticketmaster) in " +
     "parallel with a 3.5s timeout and reports per-source status, HTTP code, and " +
     "latency. Use when many tools return errors to tell which provider is down " +
     "vs which tool is broken.",

@@ -1,4 +1,4 @@
-# Local DFW MCP — Geographic Coverage (v0.1)
+# Local DFW MCP — Geographic Coverage
 
 ## Core counties
 
@@ -28,6 +28,19 @@ If the city cannot be detected at all (no ZIP/keyword, geocoder blip), the tool
 proceeds as City of Dallas but prefixes the response with an explicit
 "Assuming City of Dallas" note and how to override.
 
+## Events (`dfw_events`)
+
+Two tiers, merged soonest-first:
+
+| Tier | Coverage | Key |
+|---|---|---|
+| Official city calendars (CivicPlus RSS) | Dallas (**Parks & Recreation calendar only** — no citywide Dallas feed exists), Garland, Frisco, Mesquite | none |
+| Commercial events (Ticketmaster Discovery) | concerts / sports / theater, whole metroplex (DMA 222) | `DFW_TICKETMASTER_API_KEY` (free) |
+
+No calendar feed exists (verified 2026-07-07) for Plano (different CMS),
+Irving (redirect + 403), Fort Worth and Arlington (bot-blocked). Say
+"not covered" for those cities' official calendars rather than guessing.
+
 ## County / statewide / national tools
 
 | Tool | Coverage |
@@ -38,7 +51,7 @@ proceeds as City of Dallas but prefixes the response with an explicit
 | `dfw_utility_providers` | all Texas (PUC CCN boundaries) |
 | `dfw_district_lookup` | county + ISD statewide; council district City of Dallas only |
 
-## Not covered in v0.1
+## Not covered yet
 
 - **Building permits** (`dfw_permits`): not shipped — every current City of
   Dallas permit feed is ~20 months stale. See `dfw://datasets/index`.
