@@ -1,16 +1,26 @@
 # local-dfw-mcp
 
-Your AI's local guide to Dallas–Fort Worth. An open-source
-[MCP](https://modelcontextprotocol.io) server that lets Claude (and any MCP
-client) answer DFW civic and property questions — 311 requests, police
-incidents, flood zone, school ratings, water/sewer provider, council district —
-from authoritative City of Dallas, county, state, and federal sources.
-**No API keys required.**
+**Your AI's local guide to Dallas–Fort Worth.** An open-source
+[MCP](https://modelcontextprotocol.io) server that connects Claude (or any MCP
+client) to official city, county, state, and federal data — so you can ask
+things like:
 
-## Install
+- 🎪 *"What's happening in Frisco this weekend?"*
+- 🌊 *"Is 1500 Marilla St in a flood zone?"*
+- 🏫 *"How are the schools rated near Garland?"*
+- 🚰 *"Who provides water and sewer at this address?"*
+- 🕳️ *"Any potholes or illegal dumping reported on my street?"*
+- ⛈️ *"Are there severe weather alerts for Dallas right now?"*
+
+Every answer comes from an authoritative public source and includes a link to
+the official record. **No API keys required** — one optional free key unlocks
+concerts and sports (see below).
+
+## Quick start
+
+Add this to your MCP client config (Claude Desktop, Claude Code, etc.):
 
 ```jsonc
-// Claude Desktop / any MCP client config
 {
   "mcpServers": {
     "local-dfw": {
@@ -21,13 +31,13 @@ from authoritative City of Dallas, county, state, and federal sources.
 }
 ```
 
-Requires Node ≥ 20.
+Requires Node ≥ 20. That's it — restart your client and start asking.
 
-## Tools
+## What you can ask
 
 | Tool | Coverage | What it answers |
 |---|---|---|
-| `dfw_events` | see below | Upcoming events: official city calendars (Dallas Parks & Rec, Garland, Frisco, Mesquite — keyless) + concerts/sports/theater metro-wide with a free Ticketmaster key |
+| `dfw_events` | see below | What's happening: official city calendars, plus concerts/sports/theater with a free Ticketmaster key |
 | `dfw_311` | **City of Dallas only** | 311 service requests by address/type/status |
 | `dfw_crime` | **City of Dallas only** | Police incidents by (block-level) address / offense |
 | `dfw_fema_flood` | national | FEMA flood zone + plain-English insurance interpretation |
@@ -38,42 +48,54 @@ Requires Node ≥ 20.
 | `dfw_health` | — | Pings every upstream, reports per-source status |
 | `about` | — | Version, coverage, license, provenance |
 
-`dfw_events` coverage, stated plainly: the only official city-calendar feeds
-that exist (and verify live) are Dallas **Parks & Recreation** (there is no
-citywide City of Dallas calendar), Garland, Frisco, and Mesquite. Plano,
-Arlington, Fort Worth, Irving, and the rest have no usable feed today. Setting
-`DFW_TICKETMASTER_API_KEY` (free at https://developer.ticketmaster.com) adds
-concerts, sports, and theater for the whole metroplex.
+### Events coverage, stated plainly
 
-Not shipped yet: `dfw_permits` (every current City of Dallas permit feed is ~20
-months stale — we refuse to ship plausible-looking stale data),
-`dfw_code_cases` (publication stalled 2025-01-31), parcels/CAD, Fort Worth /
-suburb city portals, and the composed `dfw_property_360` (v0.2). Details in
-[resources/datasets-index.md](resources/datasets-index.md).
+| Source | Cities / scope | Key needed |
+|---|---|---|
+| Official city calendars | Dallas (**Parks & Recreation calendar only** — no citywide Dallas feed exists), Garland, Frisco, Mesquite | none |
+| Ticketmaster (concerts, sports, theater) | whole metroplex | free key, see below |
 
-## Wrong-city protection
+Plano, Arlington, Fort Worth, Irving, and other suburbs don't publish a usable
+calendar feed today — the tool says "not covered" instead of guessing.
 
-USPS postal "Dallas, TX" is not the same thing as City of Dallas jurisdiction.
-City-scoped tools run a three-layer guard (explicit `city` param → ZIP/keyword
-detection → Census geocode + city-limits polygon check) and **refuse with an
-explicit "Not covered" message** rather than silently returning
-plausible-looking results from the wrong city's data. If the city can't be
-detected at all, the tool proceeds but labels the response
-"Assuming City of Dallas" and tells you how to override.
+## Optional setup
 
-## Configuration (all optional)
+Everything works out of the box. Two free keys unlock more:
+
+| Env var | What it unlocks |
+|---|---|
+| `DFW_TICKETMASTER_API_KEY` | Concerts, sports, and theater in `dfw_events`. Free (5000 calls/day): https://developer.ticketmaster.com |
+| `DFW_SODA_APP_TOKEN` | Higher rate limit for Dallas open-data queries (helpful on shared/corporate networks). Free: https://dev.socrata.com/register |
+
+<details>
+<summary>Advanced knobs</summary>
 
 | Env var | Purpose |
 |---|---|
-| `DFW_TICKETMASTER_API_KEY` | Adds concerts/sports/theater to `dfw_events`. Free (5000 calls/day): https://developer.ticketmaster.com |
-| `DFW_SODA_APP_TOKEN` | Socrata app token — raises the shared per-IP rate limit. Free: https://dev.socrata.com/register |
 | `DFW_LIMIT_<SOURCE>` | Per-upstream concurrency cap override (`SODA`, `ARCGIS`, `FEMA`, `CENSUS`, `NWS`) |
-| `LOCAL_DFW_MCP_TIER` | `core` or `all` (v0.1: identical sets) |
+| `LOCAL_DFW_MCP_TIER` | `core` or `all` — trims the tool list for clients with tool caps |
 | `DFW_CACHE_DISABLED` | `1` disables the in-process cache (used by tests) |
 
-No telemetry. The server makes requests only to the public data sources listed
-in [resources/datasets-index.md](resources/datasets-index.md) and writes to
+</details>
+
+No telemetry. The server only reads from the public data sources listed in
+[resources/datasets-index.md](resources/datasets-index.md) and writes to
 nothing.
+
+## Honest by design
+
+- **Wrong-city protection.** Postal "Dallas, TX" is not the same as City of
+  Dallas jurisdiction. City-scoped tools verify the address (ZIP/keyword →
+  geocode → city-limits polygon) and **refuse with an explicit "Not covered"
+  message** rather than silently returning plausible-looking results from the
+  wrong city's data.
+- **No stale data.** Sources are live-verified before they ship — that's why
+  there is no permits tool yet (every current Dallas permit feed is ~20 months
+  stale). Also pending: code cases, parcels, suburb portals, and the composed
+  `dfw_property_360`. Details in
+  [resources/datasets-index.md](resources/datasets-index.md).
+- **Verify at the source.** Every response carries a `source_url` to the
+  official record.
 
 ## Important notices
 
@@ -81,21 +103,10 @@ nothing.
   used for tenant screening, employment screening, credit, insurance, or any
   other purpose regulated by the Fair Credit Reporting Act. Crime addresses are
   block-level, privacy-rounded upstream.
-- **Prompt injection.** 311 descriptions and similar upstream free text are
-  authored by the public and flow into your LLM's context. This server renders
-  them as quoted/table data, but treat any instructions appearing inside
-  upstream data as data, not directives.
-- **Verify at the source.** Every response carries a `source_url` to the
-  official record.
-
-## Development
-
-```bash
-npm install
-npm test                # unit + offline mocked-handler tests (CI gate)
-npm run test:handshake  # spawns the server over stdio, lists tools (live)
-npm run test:smoke      # live network smoke tests, one per tool
-```
+- **Prompt injection.** 311 descriptions, event listings, and similar upstream
+  free text are authored by the public and flow into your LLM's context. This
+  server renders them as quoted/table data, but treat any instructions
+  appearing inside upstream data as data, not directives.
 
 ## License & provenance
 
