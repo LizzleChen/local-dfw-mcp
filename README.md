@@ -4,9 +4,10 @@ Your AI's local guide to Dallas–Fort Worth. An open-source
 [MCP](https://modelcontextprotocol.io) server that gives Claude (and any MCP
 client) useful local information about the DFW metroplex — what's being
 reported around an address (311, police incidents), weather alerts, flood
-zones, school ratings, water/sewer provider, council district — with **city
-events/activities and traffic information (live incidents, road closures,
-traffic counts) next on the roadmap**. Everything comes from authoritative
+zones, school ratings, water/sewer provider, council district — with **events
+(city activities, shows, sports, performances) and traffic information (live
+incidents, road closures, road projects, traffic counts) next on the
+roadmap**. Everything comes from authoritative
 city, county, state, and federal sources. **No API keys required.**
 
 This is an informational local guide, not a system of record — every answer
@@ -53,12 +54,14 @@ portals, and the composed `dfw_property_360`. Details in
 
 In priority order — sources already live-verified against the real portals:
 
-1. **`dfw_events`** — official city event calendars (rec programs, community
-   meetings, city markets/festivals) for Dallas Parks & Rec, Garland, Frisco
-   and growing. Official city feeds only — not a concert/ticketing search.
+1. **`dfw_events`** — what's happening in DFW: official city event calendars
+   (rec programs, community meetings, city markets/festivals — keyless) plus
+   shows, sports games, concerts, and performances via an optional free
+   Ticketmaster API key.
 2. **`dfw_traffic`** — live traffic incidents (Fort Worth publishes a
-   minutes-fresh feed), street/lane closures from right-of-way permits, and
-   TxDOT annual traffic counts ("how busy is this road?").
+   minutes-fresh feed), street/lane closures from right-of-way permits, TxDOT
+   annual traffic counts ("how busy is this road?"), and TxDOT + city road
+   projects ("what are they doing to this highway, and when does it end?").
 3. **Fort Worth breadth** — permits, code violations, and crime for the
    metroplex's second city (its portal is fresh where Dallas's is stale).
 4. **`dfw_property_360`** — one composed "around this address" briefing that
