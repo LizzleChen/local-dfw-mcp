@@ -16,6 +16,8 @@ confirmed with a live query on 2026-07-06/07. Machine-readable twin:
 | `dfw_utility_providers` | Texas PUC CCN (ArcGIS, owner `gis.user.puct`) | Water `Water_CCN_Service_Areas/FeatureServer/210`, Sewer `Sewer_CCN_Service_Areas/FeatureServer/230` on services6.arcgis.com | PIP at a Frisco point returned `CITY OF FRISCO` (CCN 11772); 34 water polygons in Dallas County. Note: dense urban cores served directly by a city utility may return no CCN polygon. |
 | `dfw_district_lookup` | Dallas GIS + statewide ArcGIS | Council: `CouncilAreas/FeatureServer/0` (services2.arcgis.com/rwnOSbfKSwyTBcwN); City limits: `CityLimits/FeatureServer/0` (same org); Counties: TPP_GIS `Texas_County_Boundaries/FeatureServer/0`; ISDs: TEA `Districts1920/FeatureServer/0` | PIP at 1500 Marilla St returned District 2 / Jesse Moreno and CITY=Dallas. |
 | — geocoding | U.S. Census geocoder | `geocoding.geo.census.gov` | 1500 Marilla St resolved OK. |
+| `dfw_events` (tier 1) | CivicPlus calendar RSS (`/RSSFeed.aspx?ModID=58&CID=All-calendar.xml`) | `dallasparks.org` (Dallas Parks & Rec — **no citywide Dallas feed exists**), `garlandtx.gov`, `friscotexas.gov`, `cityofmesquite.com` | All four verified live 2026-07-07 (HTTP 200; 10-105 KB; populated `calendarEvent:*` tags, stable `Calendar.aspx?EID=` links). Probed and rejected: Irving (redirect → 403), Plano (different CMS), Fort Worth + Arlington (bot-block 403). CMS feeds churn — all four are in `dfw_health`. |
+| `dfw_events` (tier 2) | Ticketmaster Discovery API | `app.ticketmaster.com/discovery/v2/events.json`, DMA 222 (Dallas-Fort Worth) | Optional `DFW_TICKETMASTER_API_KEY` (free, 5000 calls/day / 5 rps); keyless installs get city calendars + a hint. Every event links its ticketmaster.com page (attribution). Commercial ToS: personal/non-resale API use — re-read terms before any hosted redistribution. |
 
 ## Excluded / deferred (do NOT wire without re-verification)
 
@@ -49,6 +51,9 @@ is out of scope until a clean source exists.
 
 - `DFW_SODA_APP_TOKEN` — optional Socrata app token (free signup at
   https://dev.socrata.com/register) to raise the shared anonymous rate limit.
+- `DFW_TICKETMASTER_API_KEY` — optional Ticketmaster Discovery key (free at
+  https://developer.ticketmaster.com) to add concerts/sports/theater to
+  `dfw_events`.
 - `DFW_LIMIT_<SOURCE>` — per-upstream concurrency override (soda, arcgis, fema,
   census, nws).
 - `DFW_CACHE_DISABLED=1` — disable the LRU/TTL cache (tests).

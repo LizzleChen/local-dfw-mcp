@@ -32,13 +32,14 @@
     "test:unit": "node --test test/unit/*.test.js",
     "test:handshake": "node test/mcp-handshake.js",
     "test:smoke:311": "node test/smoke-311.js",
+    "test:smoke:events": "node test/smoke-events.js",
     "test:smoke:crime": "node test/smoke-crime.js",
     "test:smoke:tea": "node test/smoke-tea-schools.js",
     "test:smoke:flood": "node test/smoke-fema-flood.js",
     "test:smoke:nws": "node test/smoke-nws-alerts.js",
     "test:smoke:utility": "node test/smoke-utility-providers.js",
     "test:smoke:district": "node test/smoke-district-lookup.js",
-    "test:smoke": "node test/smoke-311.js && node test/smoke-crime.js && node test/smoke-tea-schools.js && node test/smoke-fema-flood.js && node test/smoke-nws-alerts.js && node test/smoke-utility-providers.js && node test/smoke-district-lookup.js"
+    "test:smoke": "node test/smoke-311.js && node test/smoke-crime.js && node test/smoke-events.js && node test/smoke-tea-schools.js && node test/smoke-fema-flood.js && node test/smoke-nws-alerts.js && node test/smoke-utility-providers.js && node test/smoke-district-lookup.js"
   },
   "keywords": [
     "mcp",

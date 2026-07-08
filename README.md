@@ -23,10 +23,11 @@ from authoritative City of Dallas, county, state, and federal sources.
 
 Requires Node ≥ 20.
 
-## Tools (v0.1)
+## Tools
 
 | Tool | Coverage | What it answers |
 |---|---|---|
+| `dfw_events` | see below | Upcoming events: official city calendars (Dallas Parks & Rec, Garland, Frisco, Mesquite — keyless) + concerts/sports/theater metro-wide with a free Ticketmaster key |
 | `dfw_311` | **City of Dallas only** | 311 service requests by address/type/status |
 | `dfw_crime` | **City of Dallas only** | Police incidents by (block-level) address / offense |
 | `dfw_fema_flood` | national | FEMA flood zone + plain-English insurance interpretation |
@@ -37,7 +38,14 @@ Requires Node ≥ 20.
 | `dfw_health` | — | Pings every upstream, reports per-source status |
 | `about` | — | Version, coverage, license, provenance |
 
-Not in v0.1: `dfw_permits` (every current City of Dallas permit feed is ~20
+`dfw_events` coverage, stated plainly: the only official city-calendar feeds
+that exist (and verify live) are Dallas **Parks & Recreation** (there is no
+citywide City of Dallas calendar), Garland, Frisco, and Mesquite. Plano,
+Arlington, Fort Worth, Irving, and the rest have no usable feed today. Setting
+`DFW_TICKETMASTER_API_KEY` (free at https://developer.ticketmaster.com) adds
+concerts, sports, and theater for the whole metroplex.
+
+Not shipped yet: `dfw_permits` (every current City of Dallas permit feed is ~20
 months stale — we refuse to ship plausible-looking stale data),
 `dfw_code_cases` (publication stalled 2025-01-31), parcels/CAD, Fort Worth /
 suburb city portals, and the composed `dfw_property_360` (v0.2). Details in
@@ -57,6 +65,7 @@ detected at all, the tool proceeds but labels the response
 
 | Env var | Purpose |
 |---|---|
+| `DFW_TICKETMASTER_API_KEY` | Adds concerts/sports/theater to `dfw_events`. Free (5000 calls/day): https://developer.ticketmaster.com |
 | `DFW_SODA_APP_TOKEN` | Socrata app token — raises the shared per-IP rate limit. Free: https://dev.socrata.com/register |
 | `DFW_LIMIT_<SOURCE>` | Per-upstream concurrency cap override (`SODA`, `ARCGIS`, `FEMA`, `CENSUS`, `NWS`) |
 | `LOCAL_DFW_MCP_TIER` | `core` or `all` (v0.1: identical sets) |
