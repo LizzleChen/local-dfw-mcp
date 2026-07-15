@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { ATTRIBUTION_TAG } from "../lib/attribution.js";
-import { EVENTS_RSS, ARCGIS, SODA } from "../lib/sources.js";
+import { EVENTS_RSS, ARCGIS, SODA, CKAN } from "../lib/sources.js";
 import { calendarFeedUrl } from "../lib/civicplus-rss.js";
 
 const TIMEOUT_MS = 3500;
@@ -84,6 +84,36 @@ const CHECKS = [
     source: "ArcGIS Fort Worth Police Crime Data",
     url: `${ARCGIS.fortWorthCrime.url}?f=json`,
   },
+  // dfw_code_cases / dfw_permits (v0.3, McKinney) + dfw_crime's city="denton"
+  // branch. Reference lib/sources.js -- nothing hardcoded here. McKinney's
+  // ArcGIS server is on-prem (not AGOL, like Fort Worth's) -- worth watching.
+  {
+    source: "ArcGIS McKinney Code Enforcement Cases",
+    url: `${ARCGIS.mckinneyCodeCases.url}?f=json`,
+  },
+  {
+    source: "ArcGIS McKinney Energov Records",
+    url: `${ARCGIS.mckinneyEnergov.url}?f=json`,
+  },
+  {
+    source: "CKAN Denton Crime Data (datastore)",
+    url: `${CKAN.denton.base}/api/3/action/datastore_search?resource_id=${CKAN.denton.crime.resourceId}&limit=1`,
+  },
+  // dfw_permits / dfw_code_cases / dfw_traffic closures (v0.3, Arlington).
+  // Reference lib/sources.js -- nothing hardcoded here. Arlington's ArcGIS
+  // server is on-prem too (gis2.arlingtontx.gov, not AGOL).
+  {
+    source: "ArcGIS Arlington Issued Permits",
+    url: `${ARCGIS.arlingtonPermits.url}?f=json`,
+  },
+  {
+    source: "ArcGIS Arlington Code Complaint",
+    url: `${ARCGIS.arlingtonCodeComplaints.url}?f=json`,
+  },
+  {
+    source: "ArcGIS Arlington ROW Permits Issued",
+    url: `${ARCGIS.arlingtonRowPermits.url}?f=json`,
+  },
   {
     source: "U.S. Census geocoder",
     url: "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=Texas&benchmark=Public_AR_Current&format=json",
@@ -141,7 +171,9 @@ export const dfwHealth = {
     "Open Data, data.texas.gov, FEMA NFHL, PUC CCN, Dallas GIS, TxGIO StratMap, " +
     "Census, NWS, CivicPlus city calendars, Ticketmaster, Fort Worth traffic " +
     "accidents, Dallas ROW permits, TxDOT AADT/Projects, Fort Worth permits / " +
-    "code violations / crime data) in parallel with a 3.5s timeout and reports " +
+    "code violations / crime data, McKinney code cases / permits (ArcGIS), " +
+    "Denton crime data (CKAN), Arlington permits / code complaints / ROW " +
+    "closures (ArcGIS)) in parallel with a 3.5s timeout and reports " +
     "per-source status, HTTP code, and latency. Use when many tools return " +
     "errors to tell which provider is down vs which tool is broken.",
   inputSchema: {},

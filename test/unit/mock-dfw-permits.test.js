@@ -92,7 +92,7 @@ test("dfw_permits: real work description passes through, rendered as quoted bloc
 test("dfw_permits: city=dallas is refused, no network call", async () => {
   const res = await dfwPermits.handler({ city: "dallas", street: "Main" });
   assert.equal(res.structuredContent.not_covered, true);
-  assert.match(res.structuredContent.message, /Fort Worth only/);
+  assert.match(res.structuredContent.message, /Fort Worth, McKinney, or Arlington only/);
   assert.equal(res.structuredContent.count, 0);
 });
 
@@ -103,4 +103,119 @@ test("dfw_permits: flipping fortWorthPermits to verified:false throws a clear er
   } finally {
     ARCGIS.fortWorthPermits.verified = true;
   }
+});
+
+// --- McKinney branch (v0.3) -------------------------------------------
+
+const MCKINNEY_PERMIT_ATTRS = {
+  MODULE: "PERMIT",
+  ENT_NUMBER: "SIGN2023-08-00454",
+  ENT_WORK_CLASS: "Wall Sign",
+  ENT_DESCRIPTION: "WALL SIGN - LOYO BURGER (Sign 1)",
+  ENT_STATUS: "Complete",
+  ENT_PARCEL: "R-10486-00A-0010-1",
+  ENT_MA1: "216 W VIRGINIA ST 102",
+  ENT_MA2: "MCKINNEY, TX 75069",
+};
+
+function mockMcKinneyPermits(attrsList, status = 200) {
+  mockAgent
+    .get("https://maps.mckinneytexas.org")
+    .intercept({ path: (p) => p.includes("/EnergovRecords/MapServer/0/query"), method: "GET" })
+    .reply(
+      status,
+      status === 200 ? { features: attrsList.map((attributes) => ({ attributes })) } : "server error",
+      { headers: { "content-type": "application/json" } }
+    )
+    .persist();
+}
+
+test('dfw_permits: city="mckinney" requires address, no network call', async () => {
+  const res = await dfwPermits.handler({ city: "mckinney" });
+  assert.equal(res.structuredContent.not_covered, true);
+  assert.match(res.structuredContent.message, /requires `address`/);
+  assert.match(res.structuredContent.message, /no date field/);
+});
+
+test('dfw_permits: city="mckinney" queries the McKinney Energov layer, filters to MODULE=PERMIT, parses filed YYYY-MM', async () => {
+  mockMcKinneyPermits([MCKINNEY_PERMIT_ATTRS]);
+  const res = await dfwPermits.handler({ city: "mckinney", address: "216 W Virginia St", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  const r = payload.results[0];
+  assert.equal(r.permit_no, "SIGN2023-08-00454");
+  assert.equal(r.permit_type, "Wall Sign");
+  assert.equal(r.filed_from_case_number, "2023-08");
+  assert.equal(r.address, "216 W VIRGINIA ST 102, MCKINNEY, TX 75069");
+  assert.match(res.content[0].text, /McKinney Permits/);
+  assert.match(res.content[0].text, /NOT date-sorted/);
+});
+
+test('dfw_permits: city="mckinney" where clause always filters MODULE=PERMIT (PLAN rows excluded at the query layer)', async () => {
+  let capturedWhere = null;
+  mockAgent
+    .get("https://maps.mckinneytexas.org")
+    .intercept({
+      path: (p) => {
+        if (!p.includes("/EnergovRecords/MapServer/0/query")) return false;
+        capturedWhere = new URL(`https://maps.mckinneytexas.org${p}`).searchParams.get("where") ?? "";
+        return true;
+      },
+      method: "GET",
+    })
+    .reply(200, { features: [] }, { headers: { "content-type": "application/json" } })
+    .persist();
+
+  await dfwPermits.handler({ city: "mckinney", address: "Virginia", limit: 5 });
+  assert.match(capturedWhere, /UPPER\(MODULE\) = 'PERMIT'/);
+});
+
+// --- Arlington branch (v0.3) --------------------------------------------
+
+const ARLINGTON_PERMIT_ATTRS = {
+  FOLDERTYPE: "CP",
+  FOLDERYEAR: "25",
+  FOLDERSEQUENCE: "006792",
+  STATUSDESC: "Issued",
+  ISSUEDATE: 1784045563570,
+  FINALDATE: null,
+  SUBDESC: "Utility & Miscellaneous",
+  WORKDESC: "New Construction",
+  FOLDERNAME: "4501 W PLEASANT RIDGE ROAD",
+  ConstructionValuationDeclared: 175000.0,
+  MainUse: "Indoor/Outdoor Sport Complex",
+};
+
+function mockArlingtonPermits(attrsList, status = 200) {
+  mockAgent
+    .get("https://gis2.arlingtontx.gov")
+    .intercept({ path: (p) => p.includes("/OD_Property/MapServer/1/query"), method: "GET" })
+    .reply(
+      status,
+      status === 200 ? { features: attrsList.map((attributes) => ({ attributes })) } : "server error",
+      { headers: { "content-type": "application/json" } }
+    )
+    .persist();
+}
+
+test('dfw_permits: city="arlington" queries the Arlington Issued Permits layer and normalizes fields', async () => {
+  mockArlingtonPermits([ARLINGTON_PERMIT_ATTRS]);
+  const res = await dfwPermits.handler({ city: "arlington", address: "4501 W Pleasant Ridge", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  const r = payload.results[0];
+  assert.equal(r.permit_id, "CP25-006792");
+  assert.equal(r.status, "Issued");
+  assert.equal(r.address, "4501 W PLEASANT RIDGE ROAD");
+  assert.equal(r.valuation, 175000);
+  assert.equal(r.issue_date, "2026-07-14"); // epoch -> date
+  assert.match(res.content[0].text, /Arlington Permits/);
+});
+
+test("dfw_permits: city=arlington with no filters queries all recent issued permits, no address required", async () => {
+  mockArlingtonPermits([ARLINGTON_PERMIT_ATTRS]);
+  const res = await dfwPermits.handler({ city: "arlington", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  assert.match(res.content[0].text, /issued permits/);
 });

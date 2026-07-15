@@ -124,3 +124,52 @@ test('dfw_crime: city="fortworth" refuses an unfiltered query, no network call',
   assert.ok(res.structuredContent.not_covered);
   assert.match(res.content[0].text, /requires at least one/);
 });
+
+// --- Denton branch (v0.3) --------------------------------------------------
+
+const DENTON_ROW = {
+  ID: "77979",
+  Agency: "DENTON PD",
+  Crime: "Vandalism",
+  "Date/Time": "2026-07-14 16:45",
+  Public_Address: "MORSE ST DENTON TX ",
+};
+
+function mockDentonCrime(records) {
+  mockAgent
+    .get("https://data.cityofdenton.com")
+    .intercept({ path: (p) => p.startsWith("/api/3/action/datastore_search_sql"), method: "GET" })
+    .reply(200, { success: true, result: { records } }, { headers: { "content-type": "application/json" } })
+    .persist();
+}
+
+test('dfw_crime: city="denton" queries the CKAN datastore and normalizes fields', async () => {
+  mockDentonCrime([DENTON_ROW]);
+  const res = await dfwCrime.handler({ address: "Morse St", city: "denton", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  const r = payload.results[0];
+  assert.equal(r.incident_number, "77979");
+  assert.equal(r.offense, "Vandalism");
+  assert.equal(r.occurred_date, "2026-07-14");
+  assert.equal(r.occurred_time, "16:45");
+  // Trailing whitespace from upstream must be trimmed.
+  assert.equal(r.address, "MORSE ST DENTON TX");
+  assert.equal(r.agency, "DENTON PD");
+  assert.match(res.content[0].text, /Denton Police Crime Data/);
+  assert.match(res.content[0].text, /2019-11-06/);
+  assert.match(res.content[0].text, /Not a consumer report/i);
+});
+
+test('dfw_crime: city="denton" refuses an unfiltered query, no network call', async () => {
+  const res = await dfwCrime.handler({ city: "denton" });
+  assert.ok(res.structuredContent.not_covered);
+  assert.match(res.content[0].text, /requires at least one/);
+});
+
+test('dfw_crime: a Denton address without city="denton" is refused by the Dallas path, no network call', async () => {
+  const res = await dfwCrime.handler({ address: "100 Morse St, Denton TX 76201", offense: "vandalism" });
+  assert.ok(res.structuredContent.not_covered);
+  assert.match(res.content[0].text, /Not covered/);
+  assert.match(res.content[0].text, /Denton/);
+});

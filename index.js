@@ -87,32 +87,57 @@ ROUTING:
         ONLY. They enforce a pre-flight jurisdiction check: for a non-Dallas or
         unconfirmable-Dallas address they RETURN A "not covered" message
         instead of querying (that would yield misleading results). Suburbs
-        (Plano, Frisco, Arlington, Fort Worth, Irving, Garland, Mesquite, ...)
-        are not covered by dfw_311. dfw_crime ALSO supports city="fortworth"
-        (v0.2, City of Fort Worth Police Crime Data) when passed explicitly --
-        it is not auto-detected from the address.
-      * dfw_permits and dfw_code_cases (v0.2) are FORT WORTH ONLY -- Dallas's
-        permit feeds are stale/dead and its code-case publication stalled
-        2025-01-31, so neither is wired for Dallas. Fort Worth addresses on
-        dfw_permits are COMPONENTIZED upstream (no single situs field) --
-        search with "street" (+ optional "addr_no"), not a one-line address.
-        dfw_code_cases' address field is a normal single string.
+        (Plano, Frisco, Arlington, Fort Worth, Irving, Garland, Mesquite,
+        Denton, ...) are not covered by dfw_311. dfw_crime ALSO supports
+        city="fortworth" (v0.2, City of Fort Worth Police Crime Data) and
+        city="denton" (v0.3, City of Denton Police crime data via CKAN, 2019-
+        11-06 -> present) when passed explicitly -- neither is auto-detected
+        from the address; a Fort Worth or Denton address without that exact
+        city value is still refused by the Dallas path.
+      * dfw_permits and dfw_code_cases cover FORT WORTH (default), MCKINNEY
+        (city="mckinney", v0.3), and ARLINGTON (city="arlington", v0.3) --
+        Dallas's permit feeds are stale/dead and its code-case publication
+        stalled 2025-01-31, so none of the three is wired for Dallas. Fort
+        Worth addresses on dfw_permits are COMPONENTIZED upstream (no single
+        situs field) -- search with "street" (+ optional "addr_no"), not a
+        one-line address; McKinney/Arlington use "address" (single string)
+        instead. dfw_code_cases' address field is a normal single string for
+        all three cities. dfw_permits' McKinney source has NO DATE FIELD AT
+        ALL -- "address" is REQUIRED for city="mckinney" (no newest-first
+        browsing/listing is possible there), results are ordered by case
+        number (only roughly recent, not a true date sort), and "since_date"
+        is ignored (with a note) for that city. Arlington's permits/code
+        layers are on-prem ArcGIS servers (same flakiness caveat as Fort
+        Worth's/McKinney's on-prem twins).
       * dfw_events city calendars cover Dallas (Parks & Rec calendar ONLY --
-        there is no citywide Dallas feed), Garland, Frisco, and Mesquite.
-        Concerts/sports/theater metro-wide need DFW_TICKETMASTER_API_KEY (free);
-        keyless installs get city calendars only.
+        there is no citywide Dallas feed), Garland, Frisco, Mesquite, and
+        McKinney. Concerts/sports/theater metro-wide need
+        DFW_TICKETMASTER_API_KEY (free); keyless installs get city calendars
+        only.
+      * Irving has NO wireable data today: its residential/commercial permit
+        feeds, code-violation service, and police-incident CSVs all froze
+        2025-02-28 (or earlier), and its events RSS is bot-blocked. Say "not
+        covered" for Irving rather than guessing or querying a frozen source.
       * dfw_fema_flood, dfw_tea_schools, dfw_nws_alerts, dfw_utility_providers,
         dfw_district_lookup, and dfw_appraisal cover the 4 core counties / all of
         Texas / the U.S. (per the tool). dfw_appraisal is address-first (no
         owner-name or free-text search) and returns the 2025 certified roll.
       * dfw_traffic mixes FOUR sources with DIFFERENT coverage -- state the
         right one, do not blur them: real-time incidents (kind="incidents")
-        are FORT WORTH ONLY; street/lane closures (kind="closures", from Dallas
-        right-of-way permits) are DALLAS ONLY; annual traffic counts (AADT,
+        are FORT WORTH ONLY; street/lane closures (kind="closures", from
+        right-of-way permits) cover DALLAS + ARLINGTON (v0.3), merged by
+        default and labeled per-result with "city" -- pass city="dallas" or
+        city="arlington" to scope to one; annual traffic counts (AADT,
         kind="counts") and highway construction projects (kind="projects")
         cover the 4 core counties (Dallas/Tarrant/Collin/Denton). The default
         kind="all" merges incidents+closures only -- counts/projects need an
-        explicit kind. The AADT layer has no road-name field; do not imply
+        explicit kind. Arlington's closures ProjectStart/ProjectEnd are the
+        SCHEDULED work window and are often forward-dated months out -- never
+        state that as a staleness signal; Arlington's source also publishes
+        no per-record issued/created date, so its closures are ordered by an
+        approximation derived from the permit ID's year+sequence, not a true
+        date (a notes entry says so whenever an Arlington row is returned).
+        The AADT layer has no road-name field; do not imply
         road-name search works for "counts".
 
 SAFETY:

@@ -40,10 +40,10 @@ Requires Node ≥ 20. That's it — restart your client and start asking.
 |---|---|---|
 | `dfw_events` | see below | What's happening: official city calendars, plus concerts/sports/theater with a free Ticketmaster key |
 | `dfw_311` | **City of Dallas only** | 311 service requests by address/type/status |
-| `dfw_crime` | **City of Dallas** (default) or **Fort Worth** (`city: "fortworth"`) | Police incidents by (block-level) address / offense |
-| `dfw_permits` | **Fort Worth only** | Building/development permits by street name (+ house number), type, or status |
-| `dfw_code_cases` | **Fort Worth only** | Code-compliance violations (property maintenance, high grass, zoning, etc.) by address or complaint type |
-| `dfw_traffic` | see below | Real-time incidents (Fort Worth), street/lane closures (Dallas), TxDOT annual traffic counts + construction projects (4 core counties) |
+| `dfw_crime` | **City of Dallas** (default), **Fort Worth** (`city: "fortworth"`), or **Denton** (`city: "denton"`) | Police incidents by (block-level) address / offense |
+| `dfw_permits` | **Fort Worth** (default), **McKinney** (`city: "mckinney"`, requires `address`), or **Arlington** (`city: "arlington"`) | Building/development permits by street name (+ house number) or address, type, or status |
+| `dfw_code_cases` | **Fort Worth** (default), **McKinney** (`city: "mckinney"`), or **Arlington** (`city: "arlington"`) | Code-compliance violations (property maintenance, high grass, zoning, etc.) by address or complaint type |
+| `dfw_traffic` | see below | Real-time incidents (Fort Worth), street/lane closures (Dallas + Arlington, merged and labeled by city), TxDOT annual traffic counts + construction projects (4 core counties) |
 | `dfw_fema_flood` | national | FEMA flood zone + plain-English insurance interpretation |
 | `dfw_tea_schools` | Texas | Public schools + TEA A–F ratings (2022-23) by campus/district/county |
 | `dfw_nws_alerts` | national | Active NWS weather alerts for a DFW point |
@@ -57,7 +57,7 @@ Requires Node ≥ 20. That's it — restart your client and start asking.
 
 | Source | Cities / scope | Key needed |
 |---|---|---|
-| Official city calendars | Dallas (**Parks & Recreation calendar only** — no citywide Dallas feed exists), Garland, Frisco, Mesquite | none |
+| Official city calendars | Dallas (**Parks & Recreation calendar only** — no citywide Dallas feed exists), Garland, Frisco, Mesquite, McKinney | none |
 | Ticketmaster (concerts, sports, theater) | whole metroplex | free key, see below |
 
 Plano, Arlington, Fort Worth, Irving, and other suburbs don't publish a usable
@@ -95,10 +95,13 @@ nothing.
   message** rather than silently returning plausible-looking results from the
   wrong city's data.
 - **No stale data.** Sources are live-verified before they ship — that's why
-  `dfw_permits` and `dfw_code_cases` are Fort Worth-only: every current Dallas
-  permit feed is ~20 months stale and Dallas's code-case publication stalled
-  2025-01-31, so Dallas isn't wired for either. Also pending: suburb portals
-  beyond Fort Worth/Dallas, and the composed `dfw_property_360`. Details in
+  `dfw_permits` and `dfw_code_cases` are Fort Worth + McKinney + Arlington
+  only: every current Dallas permit feed is ~20 months stale and Dallas's
+  code-case publication stalled 2025-01-31, so Dallas isn't wired for either.
+  Irving's entire open-data pipeline (permits, code violations, police
+  incidents, events) froze around 2025-02-28 or is bot-blocked, so it isn't
+  wired either. Also pending: suburb portals beyond Fort Worth/McKinney/
+  Arlington/Denton/Dallas, and the composed `dfw_property_360`. Details in
   [resources/datasets-index.md](resources/datasets-index.md).
 - **Verify at the source.** Every response carries a `source_url` to the
   official record.

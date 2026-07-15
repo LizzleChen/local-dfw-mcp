@@ -3,8 +3,10 @@
 Registry of every upstream this MCP talks to. Most `verified` entries were
 confirmed with a live query on 2026-07-06/07/08; the Fort Worth permits/code
 violations/crime entries (`dfw_permits`, `dfw_code_cases`, `dfw_crime`'s
-`city="fortworth"` branch) were confirmed live on 2026-07-14. Machine-readable
-twin: `lib/sources.js`.
+`city="fortworth"` branch) were confirmed live on 2026-07-14; the McKinney
+permits/code-cases entries, the Denton crime (CKAN) entry, and the Arlington
+permits/code-cases/ROW-closures entries were confirmed live on 2026-07-15.
+Machine-readable twin: `lib/sources.js`.
 
 ## Shipped (verified)
 
@@ -22,12 +24,18 @@ twin: `lib/sources.js`.
 | `dfw_events` (tier 1) | CivicPlus calendar RSS (`/RSSFeed.aspx?ModID=58&CID=All-calendar.xml`) | `dallasparks.org` (Dallas Parks & Rec — **no citywide Dallas feed exists**), `garlandtx.gov`, `friscotexas.gov`, `cityofmesquite.com` | All four verified live 2026-07-07 (HTTP 200; 10-105 KB; populated `calendarEvent:*` tags, stable `Calendar.aspx?EID=` links). Probed and rejected: Irving (redirect → 403), Plano (different CMS), Fort Worth + Arlington (bot-block 403). CMS feeds churn — all four are in `dfw_health`. |
 | `dfw_events` (tier 2) | Ticketmaster Discovery API | `app.ticketmaster.com/discovery/v2/events.json`, DMA 222 (Dallas-Fort Worth) | Optional `DFW_TICKETMASTER_API_KEY` (free, 5000 calls/day / 5 rps); keyless installs get city calendars + a hint. Every event links its ticketmaster.com page (attribution). Commercial ToS: personal/non-resale API use — re-read terms before any hosted redistribution. |
 | `dfw_traffic` (incidents) | City of Fort Worth Open Data (ArcGIS) | `CFW_Current_Traffic_Accidents/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-08: `UpdateTime` matched same-day; small rolling table (4 active records at verification time). Fort Worth only. |
-| `dfw_traffic` (closures) | Dallas Open Data (Socrata) | `xd3q-ipis` (line/block-range ROW permits), `bw6g-a3ur` (point/address ROW permits) | Live-verified 2026-07-08: both return current (2026) `createddate` rows. Dallas only. See detail below — these are NOT the plan doc's original IDs. |
+| `dfw_traffic` (closures) | Dallas Open Data (Socrata) + City of Arlington Open Data (ArcGIS, on-prem, v0.3) | `xd3q-ipis` (line/block-range ROW permits), `bw6g-a3ur` (point/address ROW permits); `OD_Transportation/MapServer/9` ("ROW Permits Issued", gis2.arlingtontx.gov) | Live-verified 2026-07-08 (Dallas) / 2026-07-15 (Arlington): Dallas both return current (2026) `createddate` rows; Arlington 23,971 rows, max `UpdatedInGIS` 2026-07-15 (turned out to be a batch-sync timestamp, not per-record — see detail below). Dallas + Arlington, merged and labeled by `city`. See detail below — Dallas's IDs are NOT the plan doc's original ones. |
 | `dfw_traffic` (counts) | TxDOT Open Data (ArcGIS) | `TxDOT_5_Year_Statewide_AADT_Traffic_Counts/FeatureServer/0` (services.arcgis.com/KTcxiTD9dsQw4r7Z) | Live-verified 2026-07-08: 3210 Dallas-county records, `LATEST_AADT_YR` 2025. County field `CNTY_NM` is title case. No road-name field. |
 | `dfw_traffic` (projects) | TxDOT Open Data (ArcGIS) | `TxDOT_Projects_Info/FeatureServer/0` (services.arcgis.com/KTcxiTD9dsQw4r7Z) | Live-verified 2026-07-08: non-zero records in all 4 core counties (419 Dallas, 282 Tarrant, 298 Collin, 234 Denton). `COUNTY_NAME` is title case; `HWY_NBR` is a usable free-text search field. |
 | `dfw_permits` (Fort Worth-first, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Development_Permits_View/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 1,600,274 rows, newest `File_Date` same-day (2026-07-14). Fort Worth only; Dallas remains stale/unwired (see below). |
 | `dfw_code_cases` (Fort Worth-first, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Code_Violations_Table_view/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 65,718 rows, newest `Case_Created_Date` 2026-06-16. Fort Worth only; Dallas remains stalled/unwired (see below). |
 | `dfw_crime` (`city="fortworth"`, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Police_Crime_Data_Table_view/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 1,449,465 rows, newest `Reported_Date` 2026-07-12. Explicit-`city`-only branch alongside the unchanged Dallas default. |
+| `dfw_code_cases` (`city="mckinney"`, v0.3) | City of McKinney Open Data (ArcGIS, on-prem) | `MapServices/CodeServices/MapServer/1` ("Code Enforcement Cases") (maps.mckinneytexas.org) | Live-verified 2026-07-15: 166,053 rows, max `OpenDate` 2026-07-14. Address is a single string field. |
+| `dfw_permits` (`city="mckinney"`, v0.3) | City of McKinney Open Data (ArcGIS, on-prem) | `MapServices/EnergovRecords/MapServer/0` ("Energov Records") (maps.mckinneytexas.org) | Live-verified 2026-07-15: 328,308 rows, live through the current month (2026-07 case numbers) but NO date field — `address` required, see detail below. |
+| `dfw_crime` (`city="denton"`, v0.3) | City of Denton Open Data (CKAN, OpenGov-managed) | `denton-crime-data` package, datastore resource `34f60f26-b458-48d0-9e40-d4f83fee3563` (data.cityofdenton.com) | Live-verified 2026-07-15: 77,979 records, 2019-11-06 → present, max `"Date/Time"` = `"2026-07-14 16:45"`. |
+| `dfw_events` (tier 1, McKinney, v0.3) | CivicPlus calendar RSS | `mckinneytexas.org/RSSFeed.aspx?ModID=58&CID=All-calendar.xml` | Live-verified 2026-07-15: HTTP 200, 41 items, same CivicPlus labeled description fields as the other feeds. |
+| `dfw_permits` (`city="arlington"`, v0.3) | City of Arlington Open Data (ArcGIS, on-prem) | `OD_Property/MapServer/1` ("Issued Permits") (gis2.arlingtontx.gov) | Live-verified 2026-07-15: 18,952 rows, max `ISSUEDATE` 2026-07-14. `FOLDERNAME` is a single string address field. Sibling `OD_Property/MapServer/9` ("Permit Applications", 426 rows) exists but is NOT wired. |
+| `dfw_code_cases` (`city="arlington"`, v0.3) | City of Arlington Open Data (ArcGIS, on-prem) | `OD_Community/MapServer/6` ("Code Complaint") (gis2.arlingtontx.gov) | Live-verified 2026-07-15: 66,559 rows, max `LastUpdateAmanda` 2026-07-14. `FOLDERNAME` is a single string address field. |
 
 ### `dfw_appraisal` — TxGIO StratMap Land Parcels (verified 2026-07-07)
 
@@ -173,7 +181,203 @@ incidents kind already uses:
   `resultOffset`/`resultRecordCount`) reuse `lib/arcgis.js` exactly as
   `dfw_traffic`'s incidents kind does — nothing new added to that client.
 
+### `dfw_code_cases` / `dfw_permits` (McKinney) — v0.3, on-prem ArcGIS (verified 2026-07-15)
+
+City of McKinney runs its own on-prem ArcGIS server
+(`maps.mckinneytexas.org`, not AGOL) — same risk profile as Fort Worth's
+on-prem twin above (self-hosted infra, no AGOL SLA).
+
+- **Code Enforcement Cases** — `MapServices/CodeServices/MapServer/1`,
+  166,053 rows, max `OpenDate` 2026-07-14 (verified via `outStatistics`
+  MAX). Fields: `CaseNumber`, `CaseType`, `CaseStatus`, `AssignedTo`,
+  `OpenDate` (esri date), `Year`, `Quarter`, `CloseDate` (date), `Address`,
+  `Parcel`. **`Address` is a single string field** — a normal contains-match
+  works, ordered newest-first by `OpenDate DESC`.
+- **Energov Records** — `MapServices/EnergovRecords/MapServer/0`, 328,308
+  rows; `MODULE` is `'PERMIT'` or `'PLAN'` in one shared layer — `dfw_permits`
+  always filters `MODULE='PERMIT'` (confirmed live: a `'%VIRGINIA%'` address
+  search returns both PLAN and PERMIT rows upstream; the tool's query and its
+  unit test both assert the `MODULE='PERMIT'` filter is present). Live through
+  the current month (2026-07 `ENT_NUMBER` case numbers observed, e.g.
+  `"COM2026-07-00990"`) **but the layer has NO DATE FIELD at all** — no
+  `File_Date`/`Created_Date` equivalent exists on this layer. Consequences,
+  all deliberate design decisions:
+  - `dfw_permits` **requires `address`** for `city="mckinney"` and returns an
+    explicit LLM-friendly refusal if it's missing, rather than silently
+    returning an arbitrary/undated slice of 328k rows.
+  - `since_date` is accepted but **ignored with a note** for McKinney (there
+    is nothing to filter on).
+  - Results are ordered by `ENT_NUMBER DESC`, which only **roughly** groups
+    recent cases (the year-month is embedded in the case-number prefix) — the
+    output explicitly caveats that this is NOT a true chronological sort.
+  - The "date" surfaced per result is parsed from the case number itself
+    (`/(19|20)\d{2}-\d{2}/` on `ENT_NUMBER`, e.g. `"SIGN2023-08-00454"` →
+    `"2023-08"`) and labeled `"filed (from case number)"`, never presented as
+    an authoritative filing date.
+  - `ENT_MA1`/`ENT_MA2` are address line 1/2 — `address` contains-matches
+    `ENT_MA1`. Live-verified with the address `"216 W Virginia St"`
+    (McKinney), which returns real permit history (wall-sign permits back to
+    2016).
+
+### `dfw_crime` (Denton) — v0.3, new CKAN client (verified 2026-07-15)
+
+Denton is the first non-Socrata, non-ArcGIS source in this MCP: it publishes
+crime data on an **OpenGov-managed CKAN portal**
+(`data.cityofdenton.com`, package `denton-crime-data`, datastore resource
+`34f60f26-b458-48d0-9e40-d4f83fee3563`). New client: `lib/ckan.js`, style-
+matched to `lib/soda.js` (retry profile `"soda"`, `withLimit("ckan", ...)`
+semaphore bucket, `UpstreamError`-compatible error text).
+
+- **77,979 records**, 2019-11-06 → present, max `"Date/Time"` =
+  `"2026-07-14 16:45"` (fresh at verification). Fields: `ID`, `Agency` (e.g.
+  `"DENTON PD"`), `Crime` (category, e.g. `"Vandalism"`, `"Simple Assault"`,
+  `"All Other Offenses"`), `"Date/Time"` (`"YYYY-MM-DD HH:MM"`),
+  `Public_Address` (e.g. `"MORSE ST DENTON TX "` — often block-level/no house
+  number, has a trailing space that the tool trims).
+- **All fields are TEXT**, including `"Date/Time"` — its zero-padded format
+  means a plain lexicographic string compare/sort IS chronologically correct
+  (confirmed: `ORDER BY "Date/Time" DESC` returns true newest-first order).
+- **`datastore_search`** (CKAN's built-in endpoint) only supports exact-match
+  `filters`, so it can't do address/offense contains-matching.
+  **`datastore_search_sql`** (standard CKAN SQL over one resource) IS enabled
+  on this portal — used instead, with hand-built `ILIKE '%value%'` clauses.
+  **SQL safety**: only escaped string literals (single quotes doubled via
+  `sqlEscape`/`ilikeClause` in `lib/ckan.js`) are ever interpolated;
+  column names with special characters (`"Date/Time"`) are double-quoted
+  literals in the tool code, never derived from user input. Unit-tested in
+  `test/unit/ckan.test.js`, including an injection-payload escaping case.
+- Wired into `dfw_crime` as an **explicit-only** `city="denton"` branch
+  (mirrors the Fort Worth branch's structure: neither city has its own
+  ground-truth city-limits polygon, so routing is decided entirely by the
+  explicit `city` argument, never auto-detected from an address). Same
+  block-level-address note, FCRA "not a consumer report" notice, and "at
+  least one of address/offense" requirement as the other branches.
+  `source_url` links `https://data.cityofdenton.com/dataset/denton-crime-data`.
+
+### `dfw_events` (McKinney) — v0.3
+
+`mckinneytexas.org/RSSFeed.aspx?ModID=58&CID=All-calendar.xml` — live-
+verified 2026-07-15 (HTTP 200, 41 items), same CivicPlus labeled
+description-field shape (`Event date` / `Event Time` / `Location`) as the
+other shipped feeds. Added purely as a new `lib/sources.js` `EVENTS_RSS`
+entry — `dfw_events`' city enum derives from `Object.keys(EVENTS_RSS)`, so no
+tool-code change was needed to light up `city="mckinney"`.
+
+### `dfw_permits` / `dfw_code_cases` / `dfw_traffic` (Arlington) — v0.3, on-prem ArcGIS (verified 2026-07-15)
+
+City of Arlington runs its own on-prem ArcGIS server
+(`gis2.arlingtontx.gov/agsext2`, not AGOL) — same on-prem risk profile as
+Fort Worth's and McKinney's on-prem twins (self-hosted infra, no AGOL SLA).
+
+- **Issued Permits** — `OD_Property/MapServer/1`, 18,952 rows, max
+  `ISSUEDATE` 2026-07-14 (`outStatistics` MAX). `FOLDERNAME` IS a single
+  string address field (e.g. `"4501 W PLEASANT RIDGE ROAD"`, confirmed live
+  with a real address search returning real permit history back to 2022).
+  There is no single "permit number" field — `dfw_permits` synthesizes a
+  display ID from `FOLDERTYPE`+`FOLDERYEAR`+`FOLDERSEQUENCE` (e.g.
+  `"CP25-006792"`), never presented as an official permit number. A separate,
+  smaller **Permit Applications** layer (`OD_Property/MapServer/9`, 426 rows,
+  max `InDate` 2026-07-14) exists upstream — deliberately NOT wired (issued
+  permits only, matching Fort Worth's/McKinney's contract); recorded in
+  `lib/sources.js` as `arlingtonPermitApplications` with no `verified` flag
+  since nothing queries it.
+- **Code Complaint** — `OD_Community/MapServer/6`, 66,559 rows, max
+  `LastUpdateAmanda` 2026-07-14. `FOLDERNAME` is again a single string
+  address (sometimes trailing-space padded, e.g. `"932 N COOPER STREET "`).
+  `INDATE`/`FINALDATE` are STRING fields (`"YYYY-MM-DD"`, zero-padded, so
+  string compare/sort is chronologically correct) mapped to `created`/
+  `closed` respectively; `LastUpdateAmanda` is a genuine `esriFieldTypeDate`
+  last-modified timestamp mapped to `updated` — mirroring the created/
+  closed/updated separation just fixed for McKinney (`CloseDate` must never
+  be mislabeled `updated`). There is no public case-ID field on this layer
+  (only the internal ArcGIS `OBJECTID`) — surfaced labeled as an internal ID
+  (`"internal #12345"`), never implied to be an official case number.
+- **ROW Permits Issued** — `OD_Transportation/MapServer/9`, 23,971 rows, max
+  `UpdatedInGIS` 2026-07-15. Powers `dfw_traffic`'s `closures` Arlington
+  branch, merged with Dallas's two ROW Socrata datasets by default (each
+  result carries a `city` field, `"dallas"` or `"arlington"`, and the source
+  label differs per record).
+  - **`ProjectStart`/`ProjectEnd`** are the SCHEDULED work window, confirmed
+    live to be often forward-dated months out (e.g. a `2026-04` permit with
+    `ProjectStart` in `2026-09`) — rendered as a "scheduled closure window,"
+    never treated as a recency/staleness signal.
+  - **`UpdatedInGIS` is NOT a per-record signal**, despite its name — live
+    verification found all 23,971 rows fall inside a ~20-SECOND window (min
+    `1784095212077`ms, max `1784095231693`ms). The whole table gets
+    rewritten on every daily sync, so `ORDER BY UpdatedInGIS DESC` cannot
+    differentiate individual records and, if used as a cross-source merge
+    key, would rank every Arlington row above every genuinely-dated Dallas
+    row (or vice versa, depending on sync timing) — an apples-to-oranges
+    comparison. Surfaced per-record as informational `updated` only; NOT
+    used for sort.
+  - **This layer has no created/issued-date field of any kind.** The tool
+    instead sorts/pages by the `Permit` ID's embedded `"YYYY-NNNNNN-ROW"`
+    sequence (e.g. `"2026-027119-ROW"`), confirmed live to increase
+    monotonically with filing order (2026 sequence numbers ranged ~159 to
+    ~58,552 as of day ~196 of the year, i.e. ~300/day) — the same fallback
+    pattern `dfw_permits`' McKinney branch already uses (`ENT_NUMBER DESC`)
+    when no date field exists. For the cross-source merge with Dallas's real
+    epoch-ms `createddate` values, the sequence is spread proportionally
+    across the year (`ASSUMED_ANNUAL_SEQ_CEILING = 110000`, extrapolated from
+    the observed ~300/day rate) into a comparable-scale internal `sortKey` —
+    never displayed as a real date, purely an internal merge/pagination
+    ordering, exactly like every other `sortKey` in `dfw-traffic.js`
+    (stripped before the response goes out).
+  - **No dedicated address field** — `Segment` carries a block-range road
+    segment (e.g. `"101-199 E INTERSTATE 20 HWY"`, the closest analog to
+    Dallas's `locationnames`) and `ScopeOfWork` is free text that sometimes
+    but not reliably contains a street address (confirmed live: some rows
+    are a bare address like `"137 W I 20"`, others multi-sentence work
+    descriptions) — both are contains-matched by `search`, never used for
+    wrong-city routing.
+- All three layers reuse `lib/arcgis.js`'s `queryLayer`/`likeClause` exactly
+  as the Fort Worth and McKinney branches do — nothing new added to that
+  client for Arlington.
+
 ## Excluded / deferred (do NOT wire without re-verification)
+
+### Irving — NOT wireable (verified 2026-07-15; pipeline froze 2025-02-28)
+
+Irving's entire open-data pipeline stopped around the same date across THREE
+independent datasets — a strong signal of a stopped publication job, not
+three coincidental staleness events:
+
+- **Residential permits** —
+  `services3.arcgis.com/OfsJXUlu8pSkbl7B/.../Residential_Permits_Issued_Feb_15_2022_Present/FeatureServer/0`
+  — max `Issued_Date` **2025-02-28**, despite the `"...Present"` layer name
+  implying it's current.
+- **Commercial permits** —
+  `services3.arcgis.com/OfsJXUlu8pSkbl7B/.../Commercial_Permits_Issued_2_15_22_Present/FeatureServer/0`
+  — identical freeze, **2025-02-28**.
+- **Code violations** — annual-snapshot services, frozen since **2022** with
+  no 2023+ sibling ever published.
+- **Police incidents** — static CSV items frozen at the same **2025-02-28**
+  date, with no query API to page through them (not even a stale ArcGIS
+  layer — just fixed downloadable files).
+- **Events RSS** — Akamai bot-blocks plain (non-browser) fetches with a 403
+  (same failure mode noted in the `EVENTS_RSS` comment in `lib/sources.js`).
+
+Decision: `ARCGIS.irvingResidentialPermits` / `ARCGIS.irvingCommercialPermits`
+are recorded in `lib/sources.js` with `verified: false` and explanatory
+comments, but are **not wired into any tool**. Revisit trigger: Irving
+resumes publication (re-verify freshness across all four findings before
+wiring anything).
+
+### Plano — NO live record-level data (verified 2026-07-15)
+
+Plano's Socrata code-enforcement datasets froze **2026-03** — the newest
+publication available is over 4 months stale at verification time. Not
+wired; revisit if Plano resumes.
+
+### Arlington — WIRED (v0.3, see the dedicated section above)
+
+Unlike Irving/Plano, Arlington DOES have fresh, wireable ArcGIS layers on
+`gis2.arlingtontx.gov/agsext2/rest/services/OpenData/...` — permits, code
+complaints, and ROW closures are all shipped as of v0.3 (see "`dfw_permits` /
+`dfw_code_cases` / `dfw_traffic` (Arlington)" above). Arlington's **events**
+calendar remains excluded — it bot-blocks plain fetches the same way Fort
+Worth's does (see `EVENTS_RSS` comment in `lib/sources.js`) — so `dfw_events`
+still has no Arlington coverage.
 
 ### Dallas building permits — still EXCLUDED (stale sources only; Fort Worth ships instead, see above)
 
@@ -216,6 +420,6 @@ touched.
   https://developer.ticketmaster.com) to add concerts/sports/theater to
   `dfw_events`.
 - `DFW_LIMIT_<SOURCE>` — per-upstream concurrency override (soda, arcgis, fema,
-  census, nws).
+  census, nws, ckan).
 - `DFW_CACHE_DISABLED=1` — disable the LRU/TTL cache (tests).
 - `LOCAL_DFW_MCP_TIER=core|all` — tool tier gate (v0.1: identical sets).

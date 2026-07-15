@@ -10,8 +10,8 @@ import { upstreamErrorText } from "../../lib/retry.js";
  * dfw_events -- "what's happening around here". Two source tiers merged
  * soonest-first (see plan + lib/sources.js):
  *   Tier 1 (keyless): official CivicPlus city calendars -- Dallas Parks & Rec,
- *   Garland, Frisco, Mesquite. Dallas is the Parks & Rec calendar only; there
- *   is no citywide City of Dallas feed.
+ *   Garland, Frisco, Mesquite, McKinney (added v0.3). Dallas is the Parks &
+ *   Rec calendar only; there is no citywide City of Dallas feed.
  *   Tier 2 (optional DFW_TICKETMASTER_API_KEY): concerts / sports / theater
  *   metro-wide via the Ticketmaster Discovery API (DMA 222).
  * Feeds are fetched in parallel and one dead feed degrades to a note instead
@@ -19,7 +19,7 @@ import { upstreamErrorText } from "../../lib/retry.js";
  * cursor pagination is stable within a session.
  */
 
-const CITY_KEYS = Object.keys(EVENTS_RSS); // dallas, garland, frisco, mesquite
+const CITY_KEYS = Object.keys(EVENTS_RSS); // dallas, garland, frisco, mesquite, mckinney
 const KEYLESS_HINT =
   `Commercial events (concerts, sports, theater) not included -- set ` +
   `${EVENTS_TICKETMASTER.envKey} (free key at developer.ticketmaster.com) to add them.`;
@@ -29,11 +29,11 @@ export const dfwEvents = {
   tier: "core",
   description: withAttributionTag(
     "Upcoming DFW events. Official city calendars (keyless): Dallas Parks & " +
-      "Rec ONLY (no citywide Dallas feed), Garland, Frisco, Mesquite. Plus " +
-      "concerts/sports/theater metro-wide via Ticketmaster when " +
-      "DFW_TICKETMASTER_API_KEY is set. Filter by city, category, date range, " +
-      "free text. Other cities (Plano, Arlington, Fort Worth, Irving, ...) " +
-      "have no calendar feed -- say so rather than guessing."
+      "Rec ONLY (no citywide Dallas feed), Garland, Frisco, Mesquite, " +
+      "McKinney. Plus concerts/sports/theater metro-wide via Ticketmaster " +
+      "when DFW_TICKETMASTER_API_KEY is set. Filter by city, category, date " +
+      "range, free text. Other cities (Plano, Arlington, Fort Worth, Irving, " +
+      "...) have no calendar feed -- say so rather than guessing."
   ),
   inputSchema: {
     city: z.enum([...CITY_KEYS, "all"]).default("all")
@@ -192,7 +192,7 @@ function formatResults(p) {
   if (p.nextCursor) {
     lines.push(`*More events available. Re-call with \`cursor: "${p.nextCursor}"\`.*`, "");
   }
-  lines.push("---", "Sources: official CivicPlus city calendars (Dallas Parks & Rec, Garland, Frisco, Mesquite)" +
+  lines.push("---", "Sources: official CivicPlus city calendars (Dallas Parks & Rec, Garland, Frisco, Mesquite, McKinney)" +
     (ticketmasterKey() ? " + Ticketmaster Discovery API" : ""), ATTRIBUTION_TAG);
   return lines.join("\n");
 }

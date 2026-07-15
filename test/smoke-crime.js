@@ -22,6 +22,15 @@ try {
   console.log(`  sample: ${fwJson.results[0].occurred_date} ${fwJson.results[0].offense} @ ${fwJson.results[0].address}`);
   if (!/consumer report/i.test(fwRes.content[0].text)) throw new Error("fortworth: FCRA note missing from output");
 
+  const dentonStart = Date.now();
+  const dentonRes = await dfwCrime.handler({ offense: "vandalism", city: "denton", limit: 5 });
+  const dentonJson = JSON.parse(dentonRes.content[1].text);
+  if (!Array.isArray(dentonJson.results)) throw new Error("denton: no results array");
+  if (dentonJson.count === 0) throw new Error("zero vandalism incidents in Denton is implausible -- dataset may be stale");
+  console.log(`crime smoke: denton vandalism -> ${dentonJson.count} incidents in ${Date.now() - dentonStart}ms`);
+  console.log(`  sample: ${dentonJson.results[0].occurred_date} ${dentonJson.results[0].offense} @ ${dentonJson.results[0].address}`);
+  if (!/consumer report/i.test(dentonRes.content[0].text)) throw new Error("denton: FCRA note missing from output");
+
   console.log("OK");
   process.exit(0);
 } catch (err) {
