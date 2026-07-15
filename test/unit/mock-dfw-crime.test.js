@@ -72,3 +72,55 @@ test("dfw_crime: refuses unfiltered query", async () => {
   assert.ok(res.structuredContent.not_covered || res.structuredContent.count === 0);
   assert.match(res.content[0].text, /requires at least one/);
 });
+
+// --- Fort Worth branch (v0.2) --------------------------------------------
+
+const FW_ROW = {
+  Case_No: "260052181",
+  Case_No_Offense: "260052181-23C",
+  Reported_Date: "2026-07-12T13:01:00",
+  From_Date: "2026-07-12T11:48:00",
+  Nature_Of_Call: "THEFT",
+  Offense: "23C",
+  Offense_Desc: "GC 085-07 Theft under $100- Shoplifting",
+  BLOCK_ADDRESS: "4100 MARTIN ST",
+  City: "FORT WORTH",
+  Beat: "G18",
+  Division: null,
+  CouncilDistrict: "11",
+  Attempt_Complete: "C",
+  LocationTypeDescription: "08 DEPARTMENT/DISCOUNT STORE",
+};
+
+function mockFortWorthCrime(attrsList, status = 200) {
+  mockAgent
+    .get("https://services5.arcgis.com")
+    .intercept({ path: (p) => p.includes("/CFW_Open_Data_Police_Crime_Data_Table_view/FeatureServer/0/query"), method: "GET" })
+    .reply(
+      status,
+      status === 200 ? { features: attrsList.map((attributes) => ({ attributes })) } : "server error",
+      { headers: { "content-type": "application/json" } }
+    )
+    .persist();
+}
+
+test('dfw_crime: city="fortworth" queries the ArcGIS crime layer and normalizes fields', async () => {
+  mockFortWorthCrime([FW_ROW]);
+  const res = await dfwCrime.handler({ offense: "theft", city: "fortworth", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  const r = payload.results[0];
+  assert.equal(r.incident_number, "260052181");
+  assert.equal(r.offense, "THEFT");
+  assert.equal(r.status, "Complete"); // "C" -> "Complete"
+  assert.equal(r.address, "4100 MARTIN ST");
+  assert.equal(r.occurred_date, "2026-07-12");
+  assert.match(res.content[0].text, /Fort Worth Police Crime Data/);
+  assert.match(res.content[0].text, /Not a consumer report/i);
+});
+
+test('dfw_crime: city="fortworth" refuses an unfiltered query, no network call', async () => {
+  const res = await dfwCrime.handler({ city: "fortworth" });
+  assert.ok(res.structuredContent.not_covered);
+  assert.match(res.content[0].text, /requires at least one/);
+});

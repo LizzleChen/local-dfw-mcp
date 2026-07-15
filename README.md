@@ -40,7 +40,10 @@ Requires Node ≥ 20. That's it — restart your client and start asking.
 |---|---|---|
 | `dfw_events` | see below | What's happening: official city calendars, plus concerts/sports/theater with a free Ticketmaster key |
 | `dfw_311` | **City of Dallas only** | 311 service requests by address/type/status |
-| `dfw_crime` | **City of Dallas only** | Police incidents by (block-level) address / offense |
+| `dfw_crime` | **City of Dallas** (default) or **Fort Worth** (`city: "fortworth"`) | Police incidents by (block-level) address / offense |
+| `dfw_permits` | **Fort Worth only** | Building/development permits by street name (+ house number), type, or status |
+| `dfw_code_cases` | **Fort Worth only** | Code-compliance violations (property maintenance, high grass, zoning, etc.) by address or complaint type |
+| `dfw_traffic` | see below | Real-time incidents (Fort Worth), street/lane closures (Dallas), TxDOT annual traffic counts + construction projects (4 core counties) |
 | `dfw_fema_flood` | national | FEMA flood zone + plain-English insurance interpretation |
 | `dfw_tea_schools` | Texas | Public schools + TEA A–F ratings (2022-23) by campus/district/county |
 | `dfw_nws_alerts` | national | Active NWS weather alerts for a DFW point |
@@ -92,19 +95,21 @@ nothing.
   message** rather than silently returning plausible-looking results from the
   wrong city's data.
 - **No stale data.** Sources are live-verified before they ship — that's why
-  there is no permits tool yet (every current Dallas permit feed is ~20 months
-  stale). Also pending: code cases, suburb portals, and the composed
-  `dfw_property_360`. Details in
+  `dfw_permits` and `dfw_code_cases` are Fort Worth-only: every current Dallas
+  permit feed is ~20 months stale and Dallas's code-case publication stalled
+  2025-01-31, so Dallas isn't wired for either. Also pending: suburb portals
+  beyond Fort Worth/Dallas, and the composed `dfw_property_360`. Details in
   [resources/datasets-index.md](resources/datasets-index.md).
 - **Verify at the source.** Every response carries a `source_url` to the
   official record.
 
 ## Important notices
 
-- **Not a consumer report.** `dfw_crime`, `dfw_appraisal` (and this MCP
-  generally) must not be used for tenant screening, employment screening,
-  credit, insurance, or any other purpose regulated by the Fair Credit Reporting
-  Act. Crime addresses are block-level, privacy-rounded upstream. `dfw_appraisal`
+- **Not a consumer report.** `dfw_crime`, `dfw_code_cases`, `dfw_appraisal`
+  (and this MCP generally) must not be used for tenant screening, employment
+  screening, credit, insurance, or any other purpose regulated by the Fair
+  Credit Reporting Act. Crime addresses are block-level, privacy-rounded
+  upstream. `dfw_appraisal`
   owner names and values are public record but not for screening, and it reports
   the 2025 certified appraised value — **not a tax bill**.
 - **Prompt injection.** 311 descriptions, event listings, and similar upstream
