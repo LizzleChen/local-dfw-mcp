@@ -15,6 +15,13 @@ if (bad) throw new Error(`event missing title/source_url: ${JSON.stringify(bad)}
 console.log(`OK: ${json.count} city events (of ${json.total_matched}); notes: ${json.notes.length}`);
 console.log("sample:", json.results[0].start, "-", json.results[0].title, `[${json.results[0].city}]`);
 
+const mckRes = await dfwEvents.handler({ city: "mckinney", category: "city", limit: 5 });
+const mckJson = JSON.parse(mckRes.content[1].text);
+if (!Array.isArray(mckJson.results)) throw new Error("mckinney: no results array");
+if (mckJson.count === 0) throw new Error("mckinney: 0 events -- feed may be dead");
+console.log(`OK: mckinney -> ${mckJson.count} events (of ${mckJson.total_matched})`);
+console.log("  sample:", mckJson.results[0].start, "-", mckJson.results[0].title);
+
 if (ticketmasterKey()) {
   const tm = await dfwEvents.handler({ city: "all", category: "concert", limit: 5 });
   const tmJson = JSON.parse(tm.content[1].text);

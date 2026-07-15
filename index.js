@@ -87,20 +87,34 @@ ROUTING:
         ONLY. They enforce a pre-flight jurisdiction check: for a non-Dallas or
         unconfirmable-Dallas address they RETURN A "not covered" message
         instead of querying (that would yield misleading results). Suburbs
-        (Plano, Frisco, Arlington, Fort Worth, Irving, Garland, Mesquite, ...)
-        are not covered by dfw_311. dfw_crime ALSO supports city="fortworth"
-        (v0.2, City of Fort Worth Police Crime Data) when passed explicitly --
-        it is not auto-detected from the address.
-      * dfw_permits and dfw_code_cases (v0.2) are FORT WORTH ONLY -- Dallas's
-        permit feeds are stale/dead and its code-case publication stalled
-        2025-01-31, so neither is wired for Dallas. Fort Worth addresses on
-        dfw_permits are COMPONENTIZED upstream (no single situs field) --
-        search with "street" (+ optional "addr_no"), not a one-line address.
-        dfw_code_cases' address field is a normal single string.
+        (Plano, Frisco, Arlington, Fort Worth, Irving, Garland, Mesquite,
+        Denton, ...) are not covered by dfw_311. dfw_crime ALSO supports
+        city="fortworth" (v0.2, City of Fort Worth Police Crime Data) and
+        city="denton" (v0.3, City of Denton Police crime data via CKAN, 2019-
+        11-06 -> present) when passed explicitly -- neither is auto-detected
+        from the address; a Fort Worth or Denton address without that exact
+        city value is still refused by the Dallas path.
+      * dfw_permits and dfw_code_cases cover FORT WORTH (default) and
+        MCKINNEY (city="mckinney", v0.3) -- Dallas's permit feeds are
+        stale/dead and its code-case publication stalled 2025-01-31, so
+        neither is wired for Dallas. Fort Worth addresses on dfw_permits are
+        COMPONENTIZED upstream (no single situs field) -- search with
+        "street" (+ optional "addr_no"), not a one-line address.
+        dfw_code_cases' address field is a normal single string for both
+        cities. dfw_permits' McKinney source has NO DATE FIELD AT ALL --
+        "address" is REQUIRED for city="mckinney" (no newest-first
+        browsing/listing is possible there), results are ordered by case
+        number (only roughly recent, not a true date sort), and "since_date"
+        is ignored (with a note) for that city.
       * dfw_events city calendars cover Dallas (Parks & Rec calendar ONLY --
-        there is no citywide Dallas feed), Garland, Frisco, and Mesquite.
-        Concerts/sports/theater metro-wide need DFW_TICKETMASTER_API_KEY (free);
-        keyless installs get city calendars only.
+        there is no citywide Dallas feed), Garland, Frisco, Mesquite, and
+        McKinney. Concerts/sports/theater metro-wide need
+        DFW_TICKETMASTER_API_KEY (free); keyless installs get city calendars
+        only.
+      * Irving has NO wireable data today: its residential/commercial permit
+        feeds, code-violation service, and police-incident CSVs all froze
+        2025-02-28 (or earlier), and its events RSS is bot-blocked. Say "not
+        covered" for Irving rather than guessing or querying a frozen source.
       * dfw_fema_flood, dfw_tea_schools, dfw_nws_alerts, dfw_utility_providers,
         dfw_district_lookup, and dfw_appraisal cover the 4 core counties / all of
         Texas / the U.S. (per the tool). dfw_appraisal is address-first (no

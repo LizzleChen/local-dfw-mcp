@@ -3,8 +3,9 @@
 Registry of every upstream this MCP talks to. Most `verified` entries were
 confirmed with a live query on 2026-07-06/07/08; the Fort Worth permits/code
 violations/crime entries (`dfw_permits`, `dfw_code_cases`, `dfw_crime`'s
-`city="fortworth"` branch) were confirmed live on 2026-07-14. Machine-readable
-twin: `lib/sources.js`.
+`city="fortworth"` branch) were confirmed live on 2026-07-14; the McKinney
+permits/code-cases entries and the Denton crime (CKAN) entry were confirmed
+live on 2026-07-15. Machine-readable twin: `lib/sources.js`.
 
 ## Shipped (verified)
 
@@ -28,6 +29,10 @@ twin: `lib/sources.js`.
 | `dfw_permits` (Fort Worth-first, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Development_Permits_View/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 1,600,274 rows, newest `File_Date` same-day (2026-07-14). Fort Worth only; Dallas remains stale/unwired (see below). |
 | `dfw_code_cases` (Fort Worth-first, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Code_Violations_Table_view/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 65,718 rows, newest `Case_Created_Date` 2026-06-16. Fort Worth only; Dallas remains stalled/unwired (see below). |
 | `dfw_crime` (`city="fortworth"`, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Police_Crime_Data_Table_view/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 1,449,465 rows, newest `Reported_Date` 2026-07-12. Explicit-`city`-only branch alongside the unchanged Dallas default. |
+| `dfw_code_cases` (`city="mckinney"`, v0.3) | City of McKinney Open Data (ArcGIS, on-prem) | `MapServices/CodeServices/MapServer/1` ("Code Enforcement Cases") (maps.mckinneytexas.org) | Live-verified 2026-07-15: 166,053 rows, max `OpenDate` 2026-07-14. Address is a single string field. |
+| `dfw_permits` (`city="mckinney"`, v0.3) | City of McKinney Open Data (ArcGIS, on-prem) | `MapServices/EnergovRecords/MapServer/0` ("Energov Records") (maps.mckinneytexas.org) | Live-verified 2026-07-15: 328,308 rows, live through the current month (2026-07 case numbers) but NO date field — `address` required, see detail below. |
+| `dfw_crime` (`city="denton"`, v0.3) | City of Denton Open Data (CKAN, OpenGov-managed) | `denton-crime-data` package, datastore resource `34f60f26-b458-48d0-9e40-d4f83fee3563` (data.cityofdenton.com) | Live-verified 2026-07-15: 77,979 records, 2019-11-06 → present, max `"Date/Time"` = `"2026-07-14 16:45"`. |
+| `dfw_events` (tier 1, McKinney, v0.3) | CivicPlus calendar RSS | `mckinneytexas.org/RSSFeed.aspx?ModID=58&CID=All-calendar.xml` | Live-verified 2026-07-15: HTTP 200, 41 items, same CivicPlus labeled description fields as the other feeds. |
 
 ### `dfw_appraisal` — TxGIO StratMap Land Parcels (verified 2026-07-07)
 
@@ -173,7 +178,130 @@ incidents kind already uses:
   `resultOffset`/`resultRecordCount`) reuse `lib/arcgis.js` exactly as
   `dfw_traffic`'s incidents kind does — nothing new added to that client.
 
+### `dfw_code_cases` / `dfw_permits` (McKinney) — v0.3, on-prem ArcGIS (verified 2026-07-15)
+
+City of McKinney runs its own on-prem ArcGIS server
+(`maps.mckinneytexas.org`, not AGOL) — same risk profile as Fort Worth's
+on-prem twin above (self-hosted infra, no AGOL SLA).
+
+- **Code Enforcement Cases** — `MapServices/CodeServices/MapServer/1`,
+  166,053 rows, max `OpenDate` 2026-07-14 (verified via `outStatistics`
+  MAX). Fields: `CaseNumber`, `CaseType`, `CaseStatus`, `AssignedTo`,
+  `OpenDate` (esri date), `Year`, `Quarter`, `CloseDate` (date), `Address`,
+  `Parcel`. **`Address` is a single string field** — a normal contains-match
+  works, ordered newest-first by `OpenDate DESC`.
+- **Energov Records** — `MapServices/EnergovRecords/MapServer/0`, 328,308
+  rows; `MODULE` is `'PERMIT'` or `'PLAN'` in one shared layer — `dfw_permits`
+  always filters `MODULE='PERMIT'` (confirmed live: a `'%VIRGINIA%'` address
+  search returns both PLAN and PERMIT rows upstream; the tool's query and its
+  unit test both assert the `MODULE='PERMIT'` filter is present). Live through
+  the current month (2026-07 `ENT_NUMBER` case numbers observed, e.g.
+  `"COM2026-07-00990"`) **but the layer has NO DATE FIELD at all** — no
+  `File_Date`/`Created_Date` equivalent exists on this layer. Consequences,
+  all deliberate design decisions:
+  - `dfw_permits` **requires `address`** for `city="mckinney"` and returns an
+    explicit LLM-friendly refusal if it's missing, rather than silently
+    returning an arbitrary/undated slice of 328k rows.
+  - `since_date` is accepted but **ignored with a note** for McKinney (there
+    is nothing to filter on).
+  - Results are ordered by `ENT_NUMBER DESC`, which only **roughly** groups
+    recent cases (the year-month is embedded in the case-number prefix) — the
+    output explicitly caveats that this is NOT a true chronological sort.
+  - The "date" surfaced per result is parsed from the case number itself
+    (`/(19|20)\d{2}-\d{2}/` on `ENT_NUMBER`, e.g. `"SIGN2023-08-00454"` →
+    `"2023-08"`) and labeled `"filed (from case number)"`, never presented as
+    an authoritative filing date.
+  - `ENT_MA1`/`ENT_MA2` are address line 1/2 — `address` contains-matches
+    `ENT_MA1`. Live-verified with the address `"216 W Virginia St"`
+    (McKinney), which returns real permit history (wall-sign permits back to
+    2016).
+
+### `dfw_crime` (Denton) — v0.3, new CKAN client (verified 2026-07-15)
+
+Denton is the first non-Socrata, non-ArcGIS source in this MCP: it publishes
+crime data on an **OpenGov-managed CKAN portal**
+(`data.cityofdenton.com`, package `denton-crime-data`, datastore resource
+`34f60f26-b458-48d0-9e40-d4f83fee3563`). New client: `lib/ckan.js`, style-
+matched to `lib/soda.js` (retry profile `"soda"`, `withLimit("ckan", ...)`
+semaphore bucket, `UpstreamError`-compatible error text).
+
+- **77,979 records**, 2019-11-06 → present, max `"Date/Time"` =
+  `"2026-07-14 16:45"` (fresh at verification). Fields: `ID`, `Agency` (e.g.
+  `"DENTON PD"`), `Crime` (category, e.g. `"Vandalism"`, `"Simple Assault"`,
+  `"All Other Offenses"`), `"Date/Time"` (`"YYYY-MM-DD HH:MM"`),
+  `Public_Address` (e.g. `"MORSE ST DENTON TX "` — often block-level/no house
+  number, has a trailing space that the tool trims).
+- **All fields are TEXT**, including `"Date/Time"` — its zero-padded format
+  means a plain lexicographic string compare/sort IS chronologically correct
+  (confirmed: `ORDER BY "Date/Time" DESC` returns true newest-first order).
+- **`datastore_search`** (CKAN's built-in endpoint) only supports exact-match
+  `filters`, so it can't do address/offense contains-matching.
+  **`datastore_search_sql`** (standard CKAN SQL over one resource) IS enabled
+  on this portal — used instead, with hand-built `ILIKE '%value%'` clauses.
+  **SQL safety**: only escaped string literals (single quotes doubled via
+  `sqlEscape`/`ilikeClause` in `lib/ckan.js`) are ever interpolated;
+  column names with special characters (`"Date/Time"`) are double-quoted
+  literals in the tool code, never derived from user input. Unit-tested in
+  `test/unit/ckan.test.js`, including an injection-payload escaping case.
+- Wired into `dfw_crime` as an **explicit-only** `city="denton"` branch
+  (mirrors the Fort Worth branch's structure: neither city has its own
+  ground-truth city-limits polygon, so routing is decided entirely by the
+  explicit `city` argument, never auto-detected from an address). Same
+  block-level-address note, FCRA "not a consumer report" notice, and "at
+  least one of address/offense" requirement as the other branches.
+  `source_url` links `https://data.cityofdenton.com/dataset/denton-crime-data`.
+
+### `dfw_events` (McKinney) — v0.3
+
+`mckinneytexas.org/RSSFeed.aspx?ModID=58&CID=All-calendar.xml` — live-
+verified 2026-07-15 (HTTP 200, 41 items), same CivicPlus labeled
+description-field shape (`Event date` / `Event Time` / `Location`) as the
+other shipped feeds. Added purely as a new `lib/sources.js` `EVENTS_RSS`
+entry — `dfw_events`' city enum derives from `Object.keys(EVENTS_RSS)`, so no
+tool-code change was needed to light up `city="mckinney"`.
+
 ## Excluded / deferred (do NOT wire without re-verification)
+
+### Irving — NOT wireable (verified 2026-07-15; pipeline froze 2025-02-28)
+
+Irving's entire open-data pipeline stopped around the same date across THREE
+independent datasets — a strong signal of a stopped publication job, not
+three coincidental staleness events:
+
+- **Residential permits** —
+  `services3.arcgis.com/OfsJXUlu8pSkbl7B/.../Residential_Permits_Issued_Feb_15_2022_Present/FeatureServer/0`
+  — max `Issued_Date` **2025-02-28**, despite the `"...Present"` layer name
+  implying it's current.
+- **Commercial permits** —
+  `services3.arcgis.com/OfsJXUlu8pSkbl7B/.../Commercial_Permits_Issued_2_15_22_Present/FeatureServer/0`
+  — identical freeze, **2025-02-28**.
+- **Code violations** — annual-snapshot services, frozen since **2022** with
+  no 2023+ sibling ever published.
+- **Police incidents** — static CSV items frozen at the same **2025-02-28**
+  date, with no query API to page through them (not even a stale ArcGIS
+  layer — just fixed downloadable files).
+- **Events RSS** — Akamai bot-blocks plain (non-browser) fetches with a 403
+  (same failure mode noted in the `EVENTS_RSS` comment in `lib/sources.js`).
+
+Decision: `ARCGIS.irvingResidentialPermits` / `ARCGIS.irvingCommercialPermits`
+are recorded in `lib/sources.js` with `verified: false` and explanatory
+comments, but are **not wired into any tool**. Revisit trigger: Irving
+resumes publication (re-verify freshness across all four findings before
+wiring anything).
+
+### Plano — NO live record-level data (verified 2026-07-15)
+
+Plano's Socrata code-enforcement datasets froze **2026-03** — the newest
+publication available is over 4 months stale at verification time. Not
+wired; revisit if Plano resumes.
+
+### Arlington — HAS fresh data, not yet wired (verified 2026-07-15)
+
+Unlike Irving/Plano, Arlington DOES have fresh, wireable permits and
+code-violation ArcGIS layers on
+`gis2.arlingtontx.gov/agsext2/rest/services/OpenData/...`. Confirmed live but
+deliberately left out of this wave (v0.3 scope was McKinney + Denton) — a
+good candidate for a future wave once its layer schema is fully mapped.
 
 ### Dallas building permits — still EXCLUDED (stale sources only; Fort Worth ships instead, see above)
 
@@ -216,6 +344,6 @@ touched.
   https://developer.ticketmaster.com) to add concerts/sports/theater to
   `dfw_events`.
 - `DFW_LIMIT_<SOURCE>` — per-upstream concurrency override (soda, arcgis, fema,
-  census, nws).
+  census, nws, ckan).
 - `DFW_CACHE_DISABLED=1` — disable the LRU/TTL cache (tests).
 - `LOCAL_DFW_MCP_TIER=core|all` — tool tier gate (v0.1: identical sets).

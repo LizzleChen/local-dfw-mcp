@@ -11,7 +11,12 @@ import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
  * resources/datasets-index.md), so Dallas is deliberately NOT wired here.
  * City of Fort Worth's Code Violations ArcGIS layer is live and actively
  * maintained (verified 2026-07-14, newest Case_Created_Date 2026-06-16) and
- * is the only source this tool queries.
+ * was the only source this tool queried until v0.3.
+ *
+ * v0.3 adds a McKinney branch (city="mckinney", ArcGIS "Code Enforcement
+ * Cases" layer on McKinney's on-prem ArcGIS server, live-verified
+ * 2026-07-15). Like Fort Worth's, McKinney's Address field is a single
+ * string (not componentized), so a normal contains-match works there too.
  *
  * Unlike dfw_permits, Fort Worth's code-violations Violation_Address field is
  * a single string (NOT componentized), so a normal contains-match works here.
@@ -22,38 +27,46 @@ const ENTRY_LABEL = "dfw_code_cases";
 const SOURCE_LABEL = "City of Fort Worth Open Data -- Code Violations";
 const SOURCE_URL = ARCGIS.fortWorthCodeViolations.url;
 
+const MCK_ENTRY_LABEL = "dfw_code_cases (mckinney)";
+const MCK_SOURCE_LABEL = "City of McKinney -- Code Enforcement Cases";
+const MCK_SOURCE_URL = ARCGIS.mckinneyCodeCases.url;
+
 export const dfwCodeCases = {
   name: "dfw_code_cases",
   tier: "core",
   description: withAttributionTag(
-    "Fort Worth ONLY (v0.2) -- Dallas's code-compliance publication stalled " +
-      "2025-01-31 and is not wired (see project plan); do not claim Dallas " +
-      "coverage here. Search City of Fort Worth code-compliance (property " +
-      "maintenance / high grass / zoning / animal / solid waste, etc.) cases " +
-      "by address, complaint type, or open/closed status. Returns case ID, " +
-      "complaint type, violation/case status, created/updated dates, next " +
-      "activity due date, and the assigned code officer. NOT a consumer " +
-      "report -- do not use for tenant, employment, or other FCRA-regulated " +
-      "screening. Source: City of Fort Worth Open Data (ArcGIS)."
+    "Fort Worth (default) or McKinney (city=\"mckinney\", v0.3) -- Dallas's " +
+      "code-compliance publication stalled 2025-01-31 and is not wired (see " +
+      "project plan); do not claim Dallas coverage here. Search code-" +
+      "compliance (property maintenance / high grass / zoning / animal / " +
+      "solid waste, etc.) cases by address, complaint type, or status. " +
+      "Returns case ID, complaint type, status, created/updated dates, and " +
+      "the assigned officer (Fort Worth also returns next activity due " +
+      "date). NOT a consumer report -- do not use for tenant, employment, " +
+      "or other FCRA-regulated screening. Sources: City of Fort Worth Open " +
+      "Data / City of McKinney Code Enforcement Cases (ArcGIS)."
   ),
   inputSchema: {
-    city: z.enum(["fortworth", "dallas"]).optional()
-      .describe('Only "fortworth" is wired. Omit or pass "fortworth"; "dallas" is refused -- Dallas code-case publication stalled 2025-01-31, not covered (see project plan).'),
+    city: z.enum(["fortworth", "mckinney", "dallas"]).optional()
+      .describe('Jurisdiction: "fortworth" (default) or "mckinney" (v0.3) are wired; "dallas" is refused -- Dallas code-case publication stalled 2025-01-31, not covered (see project plan).'),
     address: z.string().min(3).optional()
-      .describe('Contains-match against the violation address (a single field, e.g. "500 Main St" or just "Main St").'),
+      .describe('Contains-match against the violation address (a single field for both cities, e.g. "500 Main St" or just "Main St").'),
     complaint_type: z.string().min(2).optional()
-      .describe('Free text, contains-match against the complaint type, e.g. "high grass", "property maintenance", "zoning", "animal", "solid waste".'),
-    status: z.enum(["open", "closed"]).optional()
-      .describe("Filter by the violation's current status (open or closed)."),
+      .describe('Free text, contains-match against the complaint/case type, e.g. "high grass", "property maintenance", "zoning", "animal", "solid waste".'),
+    status: z.string().min(2).optional()
+      .describe('Free text, contains-match against the case status, e.g. "open", "closed". Fort Worth uses a clean Open/Closed enum; McKinney\'s status text may vary.'),
     since_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
-      .describe("ISO date (YYYY-MM-DD); only cases created on/after it. Omit for the most recent cases regardless of date."),
+      .describe("ISO date (YYYY-MM-DD); only cases created/opened on/after it. Omit for the most recent cases regardless of date."),
     limit: z.number().int().min(1).max(100).default(25).describe("Max results (default 25)."),
     cursor: z.string().optional().describe("Opaque pagination cursor from a previous call."),
   },
   async handler({ city, address, complaint_type, status, since_date, limit, cursor }) {
+    if (city === "mckinney") {
+      return handleMcKinney({ address, complaint_type, status, since_date, limit, cursor });
+    }
     if (city && city !== "fortworth") {
       return refusal(
-        'Not covered: Fort Worth only (Dallas not yet wired -- see project plan). Omit `city` or set city="fortworth".',
+        'Not covered: Fort Worth or McKinney only (Dallas not yet wired -- see project plan). Omit `city`, or set city="fortworth" or city="mckinney".',
         { city, address, complaint_type, status, since_date }
       );
     }
@@ -134,6 +147,7 @@ function normalize(a) {
     city: orNull(a.City),
     created: epochToDate(a.Case_Created_Date),
     updated: epochToDate(a.Update_Date),
+    closed: null,
     next_activity_due: dateOnlyString(a.Next_Activity_Due_Date),
     officer: orNull(a.Code_Officer),
     officer_phone: orNull(a.Code_Officer_PhoneNo),
@@ -142,6 +156,119 @@ function normalize(a) {
     source: SOURCE_LABEL,
     source_url: SOURCE_URL,
   };
+}
+
+// --- McKinney branch (v0.3) -------------------------------------------
+
+async function handleMcKinney({ address, complaint_type, status, since_date, limit, cursor }) {
+  const entry = requireVerified(ARCGIS.mckinneyCodeCases, MCK_ENTRY_LABEL);
+
+  const whereParts = [];
+  // Address is a SINGLE string field here (like Fort Worth's), so a normal
+  // contains-match works -- no componentization to worry about.
+  if (address) whereParts.push(likeClause("Address", streetPart(address) || address));
+  if (complaint_type) whereParts.push(likeClause("CaseType", complaint_type));
+  if (status) whereParts.push(likeClause("CaseStatus", status));
+  if (since_date) whereParts.push(`OpenDate >= TIMESTAMP '${since_date} 00:00:00'`);
+  const where = whereParts.length ? whereParts.join(" AND ") : "1=1";
+
+  const pageSize = limit ?? 25;
+  const offset = decodeCursor(cursor)?.offset ?? 0;
+
+  const rows = await queryLayer(entry.url, {
+    where,
+    outFields: [
+      "CaseNumber", "CaseType", "CaseStatus", "AssignedTo", "OpenDate",
+      "CloseDate", "Address", "Parcel",
+    ],
+    resultRecordCount: pageSize + 1,
+    resultOffset: offset,
+    orderByFields: "OpenDate DESC",
+    returnGeometry: false,
+  });
+
+  const hasMore = rows.length > pageSize;
+  const page = (hasMore ? rows.slice(0, pageSize) : rows).map(normalizeMcKinney);
+  const nextCursor = hasMore ? encodeCursor(offset + pageSize) : null;
+
+  const payload = {
+    query: { city: "mckinney", address, complaint_type, status, since_date },
+    count: page.length,
+    results: page,
+    nextCursor,
+    offset,
+  };
+
+  return {
+    content: [
+      { type: "text", text: formatMcKinneyResults(payload, nextCursor) },
+      { type: "text", text: JSON.stringify(payload, null, 2) },
+    ],
+  };
+}
+
+// Reuses most of the shape resultBlock() expects (violation_status/
+// case_status/created/officer/...) so the same renderer works for both
+// cities. NOTE: CloseDate is a genuine case-closed date, not a last-modified
+// timestamp -- mapped to `closed` (rendered "**Closed:**"), NOT `updated`
+// (which Fort Worth's Update_Date -- a true last-modified field -- still
+// owns), to avoid misreading a closed date as "last touched".
+function normalizeMcKinney(a) {
+  return {
+    case_id: orNull(a.CaseNumber),
+    complaint_type: orNull(a.CaseType),
+    violation_status: orNull(a.CaseStatus),
+    case_status: null,
+    address: orNull(a.Address),
+    city: "McKinney",
+    created: epochToDate(a.OpenDate),
+    updated: null,
+    closed: epochToDate(a.CloseDate),
+    next_activity_due: null,
+    officer: orNull(a.AssignedTo),
+    officer_phone: null,
+    lat: null,
+    lng: null,
+    source: MCK_SOURCE_LABEL,
+    source_url: MCK_SOURCE_URL,
+  };
+}
+
+function formatMcKinneyResults(p, nextCursor) {
+  const q = p.query;
+  const parts = [];
+  if (q.address) parts.push(`"${q.address}"`);
+  if (q.complaint_type) parts.push(`type=${q.complaint_type}`);
+  if (q.status) parts.push(`status=${q.status}`);
+  if (q.since_date) parts.push(`since ${q.since_date}`);
+
+  const lines = [
+    `# McKinney Code Cases: ${parts.join(", ") || "recent"} -- ${p.count} case${p.count === 1 ? "" : "s"}`,
+    "> Coverage: City of McKinney only.",
+    "",
+  ];
+
+  if (p.count === 0) {
+    lines.push(
+      "No cases matched. Try a broader address, a different case type, or omit `since_date`.",
+      ""
+    );
+  }
+
+  for (const r of p.results) {
+    lines.push(resultBlock(r), "");
+  }
+
+  if (nextCursor) {
+    lines.push(`*More results available. Re-call with \`cursor: "${nextCursor}"\`.*`, "");
+  }
+
+  lines.push(
+    "---",
+    `Source: ${MCK_SOURCE_LABEL} (${MCK_SOURCE_URL}). Not a consumer report; not for FCRA-regulated screening.`,
+    ATTRIBUTION_TAG
+  );
+  return lines.join("\n");
 }
 
 function refusal(message, query) {
@@ -163,6 +290,7 @@ function resultBlock(r) {
   if (r.address) lines.push(`- **Address:** \`${r.address}\``);
   if (r.created) lines.push(`- **Created:** ${r.created}`);
   if (r.updated) lines.push(`- **Updated:** ${r.updated}`);
+  if (r.closed) lines.push(`- **Closed:** ${r.closed}`);
   if (r.next_activity_due) lines.push(`- **Next activity due:** ${r.next_activity_due}`);
   if (r.officer) lines.push(`- **Officer:** ${r.officer}${r.officer_phone ? ` (${r.officer_phone})` : ""}`);
   lines.push(`- **Source:** ${r.source} -- ${r.source_url}`);

@@ -19,6 +19,17 @@ try {
   if (!refused.structuredContent?.not_covered) throw new Error("city=dallas should be refused, was not");
   console.log("  city=dallas correctly refused (not_covered=true)");
 
+  const mckStart = Date.now();
+  const mckRes = await dfwCodeCases.handler({ city: "mckinney", limit: 5 });
+  if (mckRes.isError) throw new Error(mckRes.content[0].text.slice(0, 300));
+  const mckJson = JSON.parse(mckRes.content[1].text);
+  if (!Array.isArray(mckJson.results)) throw new Error("mckinney: no results array");
+  if (mckJson.count === 0) throw new Error("mckinney: zero recent code cases is implausible -- dataset may be stale or query broken");
+  console.log(`code-cases smoke: mckinney recent -> ${mckJson.count} cases in ${Date.now() - mckStart}ms`);
+  const mr = mckJson.results[0];
+  console.log(`  sample: ${mr.case_id} ${mr.complaint_type} @ ${mr.address} created ${mr.created} status=${mr.violation_status}`);
+  if (!/consumer report/i.test(mckRes.content[0].text)) throw new Error("mckinney: FCRA note missing from output");
+
   console.log("OK");
   process.exit(0);
 } catch (err) {
