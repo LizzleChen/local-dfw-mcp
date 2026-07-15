@@ -19,6 +19,10 @@ confirmed with a live query on 2026-07-06/07. Machine-readable twin:
 | — geocoding | U.S. Census geocoder | `geocoding.geo.census.gov` | 1500 Marilla St resolved OK. |
 | `dfw_events` (tier 1) | CivicPlus calendar RSS (`/RSSFeed.aspx?ModID=58&CID=All-calendar.xml`) | `dallasparks.org` (Dallas Parks & Rec — **no citywide Dallas feed exists**), `garlandtx.gov`, `friscotexas.gov`, `cityofmesquite.com` | All four verified live 2026-07-07 (HTTP 200; 10-105 KB; populated `calendarEvent:*` tags, stable `Calendar.aspx?EID=` links). Probed and rejected: Irving (redirect → 403), Plano (different CMS), Fort Worth + Arlington (bot-block 403). CMS feeds churn — all four are in `dfw_health`. |
 | `dfw_events` (tier 2) | Ticketmaster Discovery API | `app.ticketmaster.com/discovery/v2/events.json`, DMA 222 (Dallas-Fort Worth) | Optional `DFW_TICKETMASTER_API_KEY` (free, 5000 calls/day / 5 rps); keyless installs get city calendars + a hint. Every event links its ticketmaster.com page (attribution). Commercial ToS: personal/non-resale API use — re-read terms before any hosted redistribution. |
+| `dfw_traffic` (incidents) | City of Fort Worth Open Data (ArcGIS) | `CFW_Current_Traffic_Accidents/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-08: `UpdateTime` matched same-day; small rolling table (4 active records at verification time). Fort Worth only. |
+| `dfw_traffic` (closures) | Dallas Open Data (Socrata) | `xd3q-ipis` (line/block-range ROW permits), `bw6g-a3ur` (point/address ROW permits) | Live-verified 2026-07-08: both return current (2026) `createddate` rows. Dallas only. See detail below — these are NOT the plan doc's original IDs. |
+| `dfw_traffic` (counts) | TxDOT Open Data (ArcGIS) | `TxDOT_5_Year_Statewide_AADT_Traffic_Counts/FeatureServer/0` (services.arcgis.com/KTcxiTD9dsQw4r7Z) | Live-verified 2026-07-08: 3210 Dallas-county records, `LATEST_AADT_YR` 2025. County field `CNTY_NM` is title case. No road-name field. |
+| `dfw_traffic` (projects) | TxDOT Open Data (ArcGIS) | `TxDOT_Projects_Info/FeatureServer/0` (services.arcgis.com/KTcxiTD9dsQw4r7Z) | Live-verified 2026-07-08: non-zero records in all 4 core counties (419 Dallas, 282 Tarrant, 298 Collin, 234 Denton). `COUNTY_NAME` is title case; `HWY_NBR` is a usable free-text search field. |
 
 ### `dfw_appraisal` — TxGIO StratMap Land Parcels (verified 2026-07-07)
 
@@ -58,6 +62,64 @@ statewide under a standardized schema. This unblocks the previously-deferred
 - **`copyrightText`:** "Texas Geographic Information Office, Various Counties,
   Various Vendors" → attributed as TxGIO StratMap Land Parcels (data from county
   appraisal districts). MAIL_* (owner mailing) fields are omitted from output.
+
+### `dfw_traffic` — four sources, four coverage footprints (verified 2026-07-08)
+
+`dfw_traffic` merges four upstreams with genuinely different natural fields and
+coverage; there is deliberately no forced common schema (each result carries a
+`type` discriminator instead). No API key required for any of the four.
+
+- **Incidents — City of Fort Worth "Current Traffic Accidents"** (ArcGIS,
+  `CFW_Current_Traffic_Accidents/FeatureServer/0`): small **rolling live table**
+  (4 active records at verification time) — do not assume volume; a
+  `resultRecordCount` of 25–50 is plenty. Fields: `Event_Number`, `Type_`,
+  `Description`, `Severity`, `Address`, `Street`, `Cross_Street`,
+  `CreationTime`/`UpdateTime` (epoch ms). `City`/`State`/`Zip`/
+  `Location_Description`/`SubType_` are usually null. Fort Worth only — no
+  other DFW city publishes a keyless live incident feed.
+- **Closures — Dallas right-of-way (ROW) permits** (Socrata, two datasets
+  merged, tagged `geometry_type: "line"|"point"`):
+  - **Corrected dataset IDs** — the plan doc's original IDs (`yi5a-ym5z` for
+    lines, `xum9-x6px` for points) are **dead empty shell views with zero
+    columns** (confirmed live 2026-07-08). The tool uses the underlying
+    `modifyingViewUid` datasets that actually carry data: **`xd3q-ipis`**
+    (line/block-range permits, ~22.5k rows) and **`bw6g-a3ur`** (point/address
+    permits, ~62k rows). A future maintainer re-checking the plan doc against
+    `lib/sources.js` should trust `lib/sources.js`.
+  - **Use `createddate` for recency/ordering, NOT `issuedate`** — `issuedate`
+    was observed to contain unreliable future placeholder dates that match the
+    estimated-completion date, not the actual issue date.
+  - `locationnames` holds the full address on points (e.g. `"4156 LOMITA LN,
+    DALLAS, 75220"`) and a block-range on lines (e.g. `"3500-3600   DIXON
+    AVE"`); `statusdescription` is an enum (`"Issued"` | `"In Warranty"`
+    observed). Dallas only.
+- **Counts — TxDOT 5-Year Statewide AADT** (ArcGIS,
+  `TxDOT_5_Year_Statewide_AADT_Traffic_Counts/FeatureServer/0`): **county field
+  `CNTY_NM` is title case** (`"Dallas"`, not `"DALLAS"`) — the plan doc's
+  uppercase assumption only "worked" because this ArcGIS backend happens to
+  do case-insensitive string comparison; do not rely on that for display or
+  reuse elsewhere. **No road-name field** — `TRFC_STATN_ID` is a station ID
+  only (e.g. `"43HP174"`); `search` is not supported and is ignored with a
+  note. **Null-current-year quirk:** the "current" AADT slot (`AADT_RPT_QTY`)
+  is frequently `null` even though `LATEST_AADT_YR` has a real value — the
+  tool picks the first non-null value among `[AADT_RPT_QTY,
+  AADT_RPT_HIST_01_QTY, ..., AADT_RPT_HIST_04_QTY]` (most-recent-first) and
+  labels it with `LATEST_AADT_YR` rather than a hardcoded year. If all five
+  are null the tool renders "count unavailable", never a bare `0`. Scoped to
+  the 4 core counties.
+- **Projects — TxDOT Projects Info** (ArcGIS, `TxDOT_Projects_Info/FeatureServer/0`):
+  same **title-case gotcha on `COUNTY_NAME`**. `HWY_NBR` (e.g. `"FERGUSON RD"`,
+  `"US 67"`) IS a usable free-text search field, unlike the AADT layer.
+  `PT_PHASE` values are used verbatim from upstream (observed: `"Construction
+  Underway or Begins Soon"`, `"Planning, 10+ years"`, `"Construction begins
+  within 4 years"`) — the tool does not invent its own phase enum. Scoped to
+  the 4 core counties.
+- **Pagination note:** closures/counts/projects are each thousands to tens of
+  thousands of rows — too large to fetch in full like `dfw_events`' small RSS
+  feeds. Each sub-source is queried sorted by its own recency field with a
+  `topN = offset + limit + 1` cap starting at offset 0 (a standard top-K
+  merge), so `total_matched` is an honest lower bound (exact once there's no
+  next page), not a full `COUNT(*)`.
 
 ## Excluded / deferred (do NOT wire without re-verification)
 

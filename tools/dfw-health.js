@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { ATTRIBUTION_TAG } from "../lib/attribution.js";
-import { EVENTS_RSS } from "../lib/sources.js";
+import { EVENTS_RSS, ARCGIS, SODA } from "../lib/sources.js";
 import { calendarFeedUrl } from "../lib/civicplus-rss.js";
 
 const TIMEOUT_MS = 3500;
@@ -48,6 +48,27 @@ const CHECKS = [
     // the identify path we actually use, at the verified Dallas City Hall point.
     source: "ArcGIS TxGIO StratMap parcels (identify)",
     url: "https://feature.geographic.texas.gov/arcgis/rest/services/Parcels/stratmap_land_parcels_48_most_recent/MapServer/identify?geometry=-96.7970,32.7767&geometryType=esriGeometryPoint&sr=4326&layers=all:0&tolerance=2&mapExtent=-96.798,32.7757,-96.796,32.7777&imageDisplay=400,400,96&returnGeometry=false&f=json",
+  },
+  // dfw_traffic upstreams. Reference lib/sources.js -- nothing hardcoded here.
+  {
+    source: "ArcGIS Fort Worth Current Traffic Accidents",
+    url: `${ARCGIS.fortWorthAccidents.url}?f=json`,
+  },
+  {
+    source: "SODA www.dallasopendata.com (ROW permits, lines)",
+    url: `${SODA.dallas.base}/resource/${SODA.dallas.rowPermitsLines.id}.json?$limit=1`,
+  },
+  {
+    source: "SODA www.dallasopendata.com (ROW permits, points)",
+    url: `${SODA.dallas.base}/resource/${SODA.dallas.rowPermitsPoints.id}.json?$limit=1`,
+  },
+  {
+    source: "ArcGIS TxDOT 5-Year Statewide AADT",
+    url: `${ARCGIS.txdotAadt.url}?f=json`,
+  },
+  {
+    source: "ArcGIS TxDOT Projects Info",
+    url: `${ARCGIS.txdotProjects.url}?f=json`,
   },
   {
     source: "U.S. Census geocoder",
@@ -104,7 +125,8 @@ export const dfwHealth = {
   description:
     "Diagnostic. Pings every upstream data provider this MCP depends on (Dallas " +
     "Open Data, data.texas.gov, FEMA NFHL, PUC CCN, Dallas GIS, TxGIO StratMap, " +
-    "Census, NWS, CivicPlus city calendars, Ticketmaster) in " +
+    "Census, NWS, CivicPlus city calendars, Ticketmaster, Fort Worth traffic " +
+    "accidents, Dallas ROW permits, TxDOT AADT/Projects) in " +
     "parallel with a 3.5s timeout and reports per-source status, HTTP code, and " +
     "latency. Use when many tools return errors to tell which provider is down " +
     "vs which tool is broken.",
