@@ -1,8 +1,10 @@
 # Local DFW MCP — Dataset Catalog
 
-Registry of every upstream this MCP talks to. All `verified` entries were
-confirmed with a live query on 2026-07-06/07. Machine-readable twin:
-`lib/sources.js`.
+Registry of every upstream this MCP talks to. Most `verified` entries were
+confirmed with a live query on 2026-07-06/07/08; the Fort Worth permits/code
+violations/crime entries (`dfw_permits`, `dfw_code_cases`, `dfw_crime`'s
+`city="fortworth"` branch) were confirmed live on 2026-07-14. Machine-readable
+twin: `lib/sources.js`.
 
 ## Shipped (verified)
 
@@ -23,6 +25,9 @@ confirmed with a live query on 2026-07-06/07. Machine-readable twin:
 | `dfw_traffic` (closures) | Dallas Open Data (Socrata) | `xd3q-ipis` (line/block-range ROW permits), `bw6g-a3ur` (point/address ROW permits) | Live-verified 2026-07-08: both return current (2026) `createddate` rows. Dallas only. See detail below — these are NOT the plan doc's original IDs. |
 | `dfw_traffic` (counts) | TxDOT Open Data (ArcGIS) | `TxDOT_5_Year_Statewide_AADT_Traffic_Counts/FeatureServer/0` (services.arcgis.com/KTcxiTD9dsQw4r7Z) | Live-verified 2026-07-08: 3210 Dallas-county records, `LATEST_AADT_YR` 2025. County field `CNTY_NM` is title case. No road-name field. |
 | `dfw_traffic` (projects) | TxDOT Open Data (ArcGIS) | `TxDOT_Projects_Info/FeatureServer/0` (services.arcgis.com/KTcxiTD9dsQw4r7Z) | Live-verified 2026-07-08: non-zero records in all 4 core counties (419 Dallas, 282 Tarrant, 298 Collin, 234 Denton). `COUNTY_NAME` is title case; `HWY_NBR` is a usable free-text search field. |
+| `dfw_permits` (Fort Worth-first, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Development_Permits_View/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 1,600,274 rows, newest `File_Date` same-day (2026-07-14). Fort Worth only; Dallas remains stale/unwired (see below). |
+| `dfw_code_cases` (Fort Worth-first, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Code_Violations_Table_view/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 65,718 rows, newest `Case_Created_Date` 2026-06-16. Fort Worth only; Dallas remains stalled/unwired (see below). |
+| `dfw_crime` (`city="fortworth"`, v0.2) | City of Fort Worth Open Data (ArcGIS) | `CFW_Open_Data_Police_Crime_Data_Table_view/FeatureServer/0` (services5.arcgis.com/3ddLCBXe1bRt7mzj) | Live-verified 2026-07-14: 1,449,465 rows, newest `Reported_Date` 2026-07-12. Explicit-`city`-only branch alongside the unchanged Dallas default. |
 
 ### `dfw_appraisal` — TxGIO StratMap Land Parcels (verified 2026-07-07)
 
@@ -121,9 +126,56 @@ coverage; there is deliberately no forced common schema (each result carries a
   merge), so `total_matched` is an honest lower bound (exact once there's no
   next page), not a full `COUNT(*)`.
 
+### `dfw_permits` / `dfw_code_cases` / `dfw_crime` (Fort Worth) — Fort Worth-first (verified 2026-07-14)
+
+Three tools/branches share City of Fort Worth's ArcGIS Hub org
+(`services5.arcgis.com/3ddLCBXe1bRt7mzj`), the same org `dfw_traffic`'s
+incidents kind already uses:
+
+- **Permits** — `CFW_Open_Data_Development_Permits_View/FeatureServer/0`,
+  1,600,274 rows, newest `File_Date` same-day at verification (2026-07-14).
+  **Address is componentized**: `Addr_No`, `Direction`, `Street_Name`,
+  `Street_Suffix`, `Street_Suffix_Dir` — `Full_Street_Address` is usually
+  `null`. `dfw_permits` matches on `Street_Name` (+ optional `Addr_No`), never
+  a contains-match on one combined field, per the plan's componentized-address
+  guidance. `JobValue`/`Units`/`SqFt` are typed as **strings** upstream (e.g.
+  `"220000.0"`) — parsed to numbers or `null`, never left as strings.
+  `B1_WORK_DESC` is genuine free text on older permits but is literally the
+  placeholder string `"B1_WORK_DESC"` on most modern rows (an upstream
+  field-mapping bug, confirmed live: ~922k of 1.6M rows carry the literal
+  placeholder) — the tool filters that placeholder out rather than surfacing
+  it as a description. `Permit_Category` is often the literal string `"NA"` —
+  normalized to `null`.
+- **Code violations** — `CFW_Open_Data_Code_Violations_Table_view/FeatureServer/0`,
+  65,718 rows, newest `Case_Created_Date` 2026-06-16 (~4 weeks old at
+  verification, but an actively-maintained feed — not abandoned like Dallas's,
+  which stalled 2025-01-31). Unlike permits, **`Violation_Address` is a single
+  string field** (not componentized) — a normal contains-match works.
+  `Violation_Current_Status` / `Case_Current_Status` are a 2-value enum
+  (`Open`/`Closed`). `Next_Activity_Due_Date` is a plain string
+  (`"2026-07-01 00:00:00"`), not an ArcGIS date field.
+- **Crime** — `CFW_Open_Data_Police_Crime_Data_Table_view/FeatureServer/0`,
+  1,449,465 rows, newest `Reported_Date` 2026-07-12. **`Reported_Date` /
+  `From_Date` are STRING fields** (`"YYYY-MM-DDTHH:MM:SS"`), not
+  `esriFieldTypeDate` — compared/sorted as plain quoted strings, never wrapped
+  in a `TIMESTAMP` literal (confirmed both string-compare filtering and
+  `orderByFields` sort correctly on this format). `BLOCK_ADDRESS` is a single
+  block-level string field, same shape as Dallas's `incident_address`. `City`
+  is dirty free text (mostly `"FORT WORTH"` — 1,445,109 of 1,449,465 rows —
+  but includes FWPD mutual-aid/typo rows for neighboring jurisdictions,
+  e.g. `"ARLINGTON"`, `"DALLAS"`, `"FTW"`, `"ft. worth"`); not filtered on,
+  mirroring how the Dallas branch doesn't filter on its `city` field either.
+  `Attempt_Complete` is a 2-value code (`A`=Attempted, `C`=Complete) mapped to
+  a readable label. Wired into `dfw_crime` as an **explicit-only** `city`
+  branch (never auto-detected from an address) alongside the unchanged Dallas
+  default, per the plan.
+- All three query shapes (`likeClause`, `queryLayer` pagination via
+  `resultOffset`/`resultRecordCount`) reuse `lib/arcgis.js` exactly as
+  `dfw_traffic`'s incidents kind does — nothing new added to that client.
+
 ## Excluded / deferred (do NOT wire without re-verification)
 
-### `dfw_permits` — EXCLUDED from v0.1 (stale sources only)
+### Dallas building permits — still EXCLUDED (stale sources only; Fort Worth ships instead, see above)
 
 - Socrata `e7gq-4sah` ("Building Permits"): **dead** — max `issued_date` =
   `2019-12-31` despite fresh catalog metadata.
@@ -134,14 +186,17 @@ coverage; there is deliberately no forced common schema (each result carries a
     max `ISSUE_DATE` = **2024-11-12** (~20 months stale).
   - "Building Permits for Fiscal Year 2023 to 2024" →
     `.../T_BU_Permits_FY2023_24/FeatureServer/0` — FY23-24 snapshot, not current.
-- Decision: entries remain `verified: false` in `lib/sources.js`
-  (`requireVerified` guard) and the tool is not registered. Shipping a permit
-  tool on a 20-month-stale layer would silently mislead users.
+- Decision: `SODA.dallas.permits` / `ARCGIS.dallasPermits` remain
+  `verified: false` in `lib/sources.js` (`requireVerified` guard) and are
+  never queried. `dfw_permits` ships Fort Worth-only (v0.2, see above) --
+  Dallas is not "fixed", just left unwired. Shipping a permit tool on a
+  20-month-stale layer would silently mislead users.
 
-### `dfw_code_cases` — deferred
+### Dallas code-compliance cases — still deferred (Fort Worth ships instead, see above)
 
 Newest Dallas code-violations dataset is stale since **2025-01-31**. Revisit
-when the city resumes publication.
+when the city resumes publication. `dfw_code_cases` ships Fort Worth-only
+(v0.2, see above) in the meantime.
 
 ### `dfw_parcels` — UNBLOCKED (folded into `dfw_appraisal`)
 

@@ -70,6 +70,20 @@ const CHECKS = [
     source: "ArcGIS TxDOT Projects Info",
     url: `${ARCGIS.txdotProjects.url}?f=json`,
   },
+  // dfw_permits / dfw_code_cases (v0.2, Fort Worth-first) + dfw_crime's
+  // city="fortworth" branch. Reference lib/sources.js -- nothing hardcoded here.
+  {
+    source: "ArcGIS Fort Worth Development Permits",
+    url: `${ARCGIS.fortWorthPermits.url}?f=json`,
+  },
+  {
+    source: "ArcGIS Fort Worth Code Violations",
+    url: `${ARCGIS.fortWorthCodeViolations.url}?f=json`,
+  },
+  {
+    source: "ArcGIS Fort Worth Police Crime Data",
+    url: `${ARCGIS.fortWorthCrime.url}?f=json`,
+  },
   {
     source: "U.S. Census geocoder",
     url: "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=Texas&benchmark=Public_AR_Current&format=json",
@@ -126,10 +140,10 @@ export const dfwHealth = {
     "Diagnostic. Pings every upstream data provider this MCP depends on (Dallas " +
     "Open Data, data.texas.gov, FEMA NFHL, PUC CCN, Dallas GIS, TxGIO StratMap, " +
     "Census, NWS, CivicPlus city calendars, Ticketmaster, Fort Worth traffic " +
-    "accidents, Dallas ROW permits, TxDOT AADT/Projects) in " +
-    "parallel with a 3.5s timeout and reports per-source status, HTTP code, and " +
-    "latency. Use when many tools return errors to tell which provider is down " +
-    "vs which tool is broken.",
+    "accidents, Dallas ROW permits, TxDOT AADT/Projects, Fort Worth permits / " +
+    "code violations / crime data) in parallel with a 3.5s timeout and reports " +
+    "per-source status, HTTP code, and latency. Use when many tools return " +
+    "errors to tell which provider is down vs which tool is broken.",
   inputSchema: {},
   outputSchema: {
     summary: z.object({

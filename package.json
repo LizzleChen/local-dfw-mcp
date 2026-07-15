@@ -41,7 +41,9 @@
     "test:smoke:district": "node test/smoke-district-lookup.js",
     "test:smoke:appraisal": "node test/smoke-appraisal.js",
     "test:smoke:traffic": "node test/smoke-traffic.js",
-    "test:smoke": "node test/smoke-311.js && node test/smoke-crime.js && node test/smoke-events.js && node test/smoke-tea-schools.js && node test/smoke-fema-flood.js && node test/smoke-nws-alerts.js && node test/smoke-utility-providers.js && node test/smoke-district-lookup.js && node test/smoke-appraisal.js && node test/smoke-traffic.js"
+    "test:smoke:permits": "node test/smoke-permits.js",
+    "test:smoke:code-cases": "node test/smoke-code-cases.js",
+    "test:smoke": "node test/smoke-311.js && node test/smoke-crime.js && node test/smoke-events.js && node test/smoke-tea-schools.js && node test/smoke-fema-flood.js && node test/smoke-nws-alerts.js && node test/smoke-utility-providers.js && node test/smoke-district-lookup.js && node test/smoke-appraisal.js && node test/smoke-traffic.js && node test/smoke-permits.js && node test/smoke-code-cases.js"
   },
   "keywords": [
     "mcp",

@@ -23,6 +23,8 @@ const EXPECTED_TOOLS = [
   "dfw_health",
   "dfw_311",
   "dfw_crime",
+  "dfw_permits",
+  "dfw_code_cases",
   "dfw_fema_flood",
   "dfw_tea_schools",
   "dfw_nws_alerts",
@@ -88,9 +90,6 @@ try {
   console.log(`tools/list OK -- ${names.length} tools: ${names.join(", ")}`);
   for (const expected of EXPECTED_TOOLS) {
     if (!names.includes(expected)) throw new Error(`Missing expected tool: ${expected}`);
-  }
-  if (names.includes("dfw_permits")) {
-    throw new Error("dfw_permits must NOT be registered in v0.1 (stale sources)");
   }
 
   // about

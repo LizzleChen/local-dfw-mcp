@@ -11,8 +11,8 @@
 
 ## City-scoped tools — City of Dallas ONLY
 
-`dfw_311` and `dfw_crime` query City of Dallas Open Data. They enforce a
-pre-flight jurisdiction guard ("no wrong-city silent success"):
+`dfw_311` and `dfw_crime`'s default/Dallas path query City of Dallas Open Data.
+They enforce a pre-flight jurisdiction guard ("no wrong-city silent success"):
 
 1. **Explicit `city` parameter** — pass `city: "dallas"` to override detection.
 2. **Fast string layer** — ZIP table + city keywords. A clearly non-Dallas
@@ -27,6 +27,33 @@ pre-flight jurisdiction guard ("no wrong-city silent success"):
 If the city cannot be detected at all (no ZIP/keyword, geocoder blip), the tool
 proceeds as City of Dallas but prefixes the response with an explicit
 "Assuming City of Dallas" note and how to override.
+
+`dfw_crime` additionally supports `city: "fortworth"` (v0.2) -- see below. This
+is an EXPLICIT-only override: it is never auto-detected from an address (a
+Fort Worth address without `city: "fortworth"` is still refused by the Dallas
+path with a "not covered" message, same as any other non-Dallas address).
+
+## City-scoped tools — Fort Worth ONLY (v0.2)
+
+`dfw_permits`, `dfw_code_cases`, and `dfw_crime`'s `city: "fortworth"` branch
+query City of Fort Worth Open Data (ArcGIS). Dallas is deliberately NOT wired
+for permits/code-cases (Dallas's permit feeds are stale/dead and its
+code-case publication stalled 2025-01-31 -- see `dfw://datasets/index`); any
+`city` value other than `"fortworth"` (including `"dallas"`) is refused with
+an explicit "Fort Worth only" message, never a best-effort query.
+
+- **`dfw_permits`** — Fort Worth addresses are **componentized upstream**
+  (`Addr_No` / `Street_Name` / `Street_Suffix` — there is no single situs
+  string field; `Full_Street_Address` is usually null). Search with `street`
+  (contains-match on `Street_Name`) + optional `addr_no` (exact match), never
+  a one-line address.
+- **`dfw_code_cases`** — Fort Worth's `Violation_Address` IS a single string
+  field (not componentized), so a normal contains-match address filter works.
+  Same FCRA "not a consumer report" notice as `dfw_crime`.
+- **`dfw_crime` (`city: "fortworth"`)** — queries the City of Fort Worth
+  Police Crime Data ArcGIS layer instead of Dallas's Socrata dataset; same
+  block-level-address shape, FCRA notice, and "at least one of address/offense"
+  requirement as the Dallas path.
 
 ## Events (`dfw_events`)
 
@@ -72,9 +99,10 @@ explicit `kind`.
 
 ## Not covered yet
 
-- **Building permits** (`dfw_permits`): not shipped — every current City of
-  Dallas permit feed is ~20 months stale. See `dfw://datasets/index`.
-- **Code compliance cases**: deferred — newest Dallas dataset stale since
-  2025-01-31.
-- **Fort Worth / Arlington / Plano / Frisco city portals**: v0.2.
-- **Composed `dfw_property_360`**: v0.2.
+- **Dallas building permits**: every current City of Dallas permit feed is
+  ~20 months stale — not wired. `dfw_permits` ships Fort Worth-only (v0.2).
+  See `dfw://datasets/index`.
+- **Dallas code-compliance cases**: newest Dallas dataset stale since
+  2025-01-31 — not wired. `dfw_code_cases` ships Fort Worth-only (v0.2).
+- **Arlington / Plano / Frisco city portals**: not yet built.
+- **Composed `dfw_property_360`**: v0.2, still to come.
