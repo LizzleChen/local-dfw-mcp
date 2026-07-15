@@ -30,6 +30,17 @@ try {
   console.log(`  sample: ${mr.case_id} ${mr.complaint_type} @ ${mr.address} created ${mr.created} status=${mr.violation_status}`);
   if (!/consumer report/i.test(mckRes.content[0].text)) throw new Error("mckinney: FCRA note missing from output");
 
+  const arlStart = Date.now();
+  const arlRes = await dfwCodeCases.handler({ city: "arlington", limit: 5 });
+  if (arlRes.isError) throw new Error(arlRes.content[0].text.slice(0, 300));
+  const arlJson = JSON.parse(arlRes.content[1].text);
+  if (!Array.isArray(arlJson.results)) throw new Error("arlington: no results array");
+  if (arlJson.count === 0) throw new Error("arlington: zero recent code cases is implausible -- dataset may be stale or query broken");
+  console.log(`code-cases smoke: arlington recent -> ${arlJson.count} cases in ${Date.now() - arlStart}ms`);
+  const ar = arlJson.results[0];
+  console.log(`  sample: ${ar.case_id} ${ar.complaint_type} @ ${ar.address} created ${ar.created} status=${ar.violation_status}`);
+  if (!/consumer report/i.test(arlRes.content[0].text)) throw new Error("arlington: FCRA note missing from output");
+
   console.log("OK");
   process.exit(0);
 } catch (err) {

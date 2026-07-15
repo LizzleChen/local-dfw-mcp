@@ -37,12 +37,12 @@ Worth nor Denton has its own ground-truth city-limits polygon (only Dallas
 does) -- routing for those two is decided entirely by the explicit `city`
 argument.
 
-## City-scoped tools — Fort Worth + McKinney (v0.2 / v0.3)
+## City-scoped tools — Fort Worth + McKinney + Arlington (v0.2 / v0.3)
 
 `dfw_permits`, `dfw_code_cases`, and `dfw_crime`'s `city: "fortworth"` /
-`city: "denton"` branches query City of Fort Worth / McKinney / Denton Open
-Data. Dallas is deliberately NOT wired for permits/code-cases (Dallas's
-permit feeds are stale/dead and its code-case publication stalled
+`city: "denton"` branches query City of Fort Worth / McKinney / Arlington /
+Denton Open Data. Dallas is deliberately NOT wired for permits/code-cases
+(Dallas's permit feeds are stale/dead and its code-case publication stalled
 2025-01-31 -- see `dfw://datasets/index`); any `city` value other than the
 wired ones (including `"dallas"`) is refused with an explicit "not covered"
 message, never a best-effort query.
@@ -61,13 +61,25 @@ message, never a best-effort query.
   is embedded in the case-number prefix, e.g. `"COM2026-07-00990"`) — not a
   true chronological sort. The "filed" date surfaced to users is parsed from
   the case number and labeled "filed (from case number)", never implied to
-  be an authoritative date.
+  be an authoritative date. **Arlington (`city: "arlington"`, v0.3)** queries
+  Arlington's Issued Permits layer; `FOLDERNAME` IS a single string address
+  (like McKinney, unlike Fort Worth). Issued permits only — a separate,
+  smaller Permit Applications layer exists upstream but is deliberately not
+  wired (see `dfw://datasets/index`).
 - **`dfw_code_cases`** — Fort Worth's `Violation_Address` IS a single string
   field (not componentized), so a normal contains-match address filter works.
   **McKinney (`city: "mckinney"`, v0.3)** queries McKinney's Code Enforcement
   Cases layer (on McKinney's on-prem ArcGIS server, same risk profile as Fort
-  Worth's on-prem twin); its `Address` field is also a single string. Same
-  FCRA "not a consumer report" notice for both cities.
+  Worth's on-prem twin); its `Address` field is also a single string.
+  **Arlington (`city: "arlington"`, v0.3)** queries Arlington's Code
+  Complaint layer (also on-prem, also a single `FOLDERNAME` string address);
+  its case-created/case-closed dates (`INDATE`/`FINALDATE`) map to
+  `created`/`closed`, and its genuine last-modified field
+  (`LastUpdateAmanda`) maps to `updated` — mirroring the created/closed/
+  updated separation fixed for McKinney (a close date must never be
+  mislabeled "updated"). Arlington publishes no public case-ID field — the
+  internal ArcGIS row ID is surfaced labeled as an internal ID. Same FCRA
+  "not a consumer report" notice for all three cities.
 - **`dfw_crime` (`city: "fortworth"`)** — queries the City of Fort Worth
   Police Crime Data ArcGIS layer instead of Dallas's Socrata dataset; same
   block-level-address shape, FCRA notice, and "at least one of address/offense"
@@ -100,16 +112,31 @@ Four sources, each with **different** coverage -- do not blur them:
 | Kind | Coverage | Source |
 |---|---|---|
 | `incidents` | **Fort Worth ONLY** -- no other DFW city publishes a keyless live incident feed | City of Fort Worth "Current Traffic Accidents" (ArcGIS, small rolling table) |
-| `closures` | **Dallas ONLY** | City of Dallas right-of-way (ROW) permits (Socrata, line + point permits merged) |
+| `closures` | **Dallas + Arlington** (v0.3), merged by default and labeled per-result with `city` | City of Dallas right-of-way (ROW) permits (Socrata, line + point permits merged) + City of Arlington ROW Permits Issued (ArcGIS, on-prem) |
 | `counts` | Dallas, Tarrant, Collin, Denton counties | TxDOT 5-Year Statewide AADT Traffic Counts (ArcGIS). No road-name field -- `search` is ignored with a note. |
 | `projects` | Dallas, Tarrant, Collin, Denton counties | TxDOT Projects Info (ArcGIS). `search` matches the highway number (`HWY_NBR`). |
 
 `kind="incidents"` with `city` set to anything but `"fortworth"`, or
-`kind="closures"` with `city` set to anything but `"dallas"`, returns a
-"not covered" response instead of a best-effort (and misleading) query — the
-same "no wrong-city silent success" rule used by `dfw_311`/`dfw_crime`. Default
-`kind="all"` merges incidents + closures only; `counts`/`projects` need an
-explicit `kind`.
+`kind="closures"` with `city` set to anything but `"dallas"`/`"arlington"`,
+returns a "not covered" response instead of a best-effort (and misleading)
+query — the same "no wrong-city silent success" rule used by
+`dfw_311`/`dfw_crime`. Default `kind="all"` merges incidents + closures only
+(now including both closures cities); `counts`/`projects` need an explicit
+`kind`.
+
+**Arlington closures caveat (live-verified 2026-07-15):** `ProjectStart`/
+`ProjectEnd` are the SCHEDULED work window and are often forward-dated months
+into the future — presented as the closure window, never as a staleness
+signal. `UpdatedInGIS` looks like a per-record freshness field but turned out
+to be a whole-table batch-sync timestamp (all 23,971 rows fall inside a
+~20-second window) — surfaced as informational `updated` but NOT used for
+sorting. This layer has no created/issued-date field at all, so the merge/
+sort key is instead derived from the `Permit` ID's embedded year+sequence
+(`"YYYY-NNNNNN-ROW"`), which does increase monotonically with filing order —
+the same fallback pattern `dfw_permits`' McKinney branch already uses
+(`ENT_NUMBER DESC`) when no date field exists. See `lib/sources.js`
+`arlingtonRowPermits` and `resources/datasets-index.md` for the full
+reasoning.
 
 ## County / statewide / national tools
 
@@ -125,20 +152,25 @@ explicit `kind`.
 ## Not covered yet
 
 - **Dallas building permits**: every current City of Dallas permit feed is
-  ~20 months stale — not wired. `dfw_permits` ships Fort Worth + McKinney
-  (v0.2 / v0.3). See `dfw://datasets/index`.
+  ~20 months stale — not wired. `dfw_permits` ships Fort Worth + McKinney +
+  Arlington (v0.2 / v0.3). See `dfw://datasets/index`.
 - **Dallas code-compliance cases**: newest Dallas dataset stale since
-  2025-01-31 — not wired. `dfw_code_cases` ships Fort Worth + McKinney
-  (v0.2 / v0.3).
+  2025-01-31 — not wired. `dfw_code_cases` ships Fort Worth + McKinney +
+  Arlington (v0.2 / v0.3).
 - **Irving**: NOT wireable today. Residential/commercial permits, code
   violations, and police incidents all froze around 2025-02-28 (or earlier)
   with no successor dataset; events RSS is Akamai bot-blocked (403). Revisit
   if/when Irving resumes publication.
 - **Plano**: has NO live record-level data — its Socrata code-enforcement
   datasets froze 2026-03 (see `dfw://datasets/index`). Not wired.
-- **Arlington**: HAS fresh, wireable permits/code-violation ArcGIS layers on
-  `gis2.arlingtontx.gov/agsext2/rest/services/OpenData/...` — confirmed live
-  but not yet wired. Candidate for a future wave.
+- **Arlington Permit Applications**: a separate, smaller layer (426 rows at
+  verification) covering in-process applications rather than issued permits
+  — deliberately left out of `dfw_permits`' contract (issued permits only,
+  matching Fort Worth/McKinney). See `lib/sources.js`
+  `arlingtonPermitApplications`.
+- **Arlington events calendar**: still bot-blocked (403) — `dfw_events` has
+  no Arlington coverage (permits/code-cases/traffic closures are wired,
+  events are not).
 - **Frisco city portal (permits/code/crime)**: not yet built (Frisco is
   covered today only by its `dfw_events` calendar).
 - **Composed `dfw_property_360`**: still to come.

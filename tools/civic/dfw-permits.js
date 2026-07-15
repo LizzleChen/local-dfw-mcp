@@ -25,6 +25,16 @@ import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
  * results are ordered by ENT_NUMBER DESC, which only roughly groups recent
  * cases (not a true chronological sort) -- both facts are surfaced in the
  * output. `since_date` is accepted but ignored (with a note) for McKinney.
+ *
+ * v0.3 also adds an Arlington branch (city="arlington", ArcGIS "Issued
+ * Permits" layer on Arlington's on-prem server, live-verified 2026-07-15).
+ * Arlington's FOLDERNAME field IS a single string address (like McKinney,
+ * unlike Fort Worth's componentized fields) -- `address` contains-matches it.
+ * There is no single "permit number" field; a display ID is synthesized from
+ * FOLDERTYPE+FOLDERYEAR+FOLDERSEQUENCE. A separate, smaller "Permit
+ * Applications" layer exists upstream but is deliberately NOT wired (issued
+ * permits only, matching the Fort Worth/McKinney contract) -- see
+ * lib/sources.js `arlingtonPermitApplications` and resources/datasets-index.md.
  */
 const ENTRY_LABEL = "dfw_permits";
 const SOURCE_LABEL = "City of Fort Worth Open Data -- Development Permits";
@@ -34,37 +44,43 @@ const MCK_ENTRY_LABEL = "dfw_permits (mckinney)";
 const MCK_SOURCE_LABEL = "City of McKinney -- Energov Permits";
 const MCK_SOURCE_URL = ARCGIS.mckinneyEnergov.url;
 
+const ARL_ENTRY_LABEL = "dfw_permits (arlington)";
+const ARL_SOURCE_LABEL = "City of Arlington -- Issued Permits";
+const ARL_SOURCE_URL = ARCGIS.arlingtonPermits.url;
+
 export const dfwPermits = {
   name: "dfw_permits",
   tier: "core",
   description: withAttributionTag(
-    "Fort Worth (default) or McKinney (city=\"mckinney\", v0.3) -- Dallas " +
-      "building-permit feeds are stale/dead and not wired (see project " +
-      "plan); do not claim Dallas coverage here. Search building/development " +
-      "permits. Fort Worth addresses are componentized upstream -- match on " +
-      "`street` (+ optional `addr_no`), not a one-line address. McKinney's " +
-      "source has NO DATE FIELD, so `address` is REQUIRED for city=" +
-      "\"mckinney\" and results are ordered by case number (not strictly " +
-      "chronological), not File_Date. Returns permit number, type, status, " +
-      "dates (Fort Worth) or filed-YYYY-MM parsed from the case number " +
-      "(McKinney), address, and owner/job value (Fort Worth only). Sources: " +
-      "City of Fort Worth Open Data / City of McKinney Energov (ArcGIS)."
+    "Fort Worth (default), McKinney (city=\"mckinney\", v0.3), or Arlington " +
+      "(city=\"arlington\", v0.3) -- Dallas building-permit feeds are " +
+      "stale/dead and not wired (see project plan); do not claim Dallas " +
+      "coverage here. Search building/development permits. Fort Worth " +
+      "addresses are componentized upstream -- match on `street` (+ " +
+      "optional `addr_no`), not a one-line address. McKinney's source has " +
+      "NO DATE FIELD, so `address` is REQUIRED for city=\"mckinney\" and " +
+      "results are ordered by case number (not strictly chronological), not " +
+      "File_Date. Arlington's `address` IS a single string (like McKinney), " +
+      "issued permits only. Returns permit number/ID, type, status, dates " +
+      "or filed-YYYY-MM (McKinney), address, and owner/job value (Fort " +
+      "Worth only). Sources: City of Fort Worth / McKinney / Arlington Open " +
+      "Data (ArcGIS)."
   ),
   inputSchema: {
-    city: z.enum(["fortworth", "mckinney", "dallas"]).optional()
-      .describe('Jurisdiction: "fortworth" (default) or "mckinney" (v0.3) are wired; "dallas" is refused -- Dallas permit feeds are stale/dead, not covered (see project plan).'),
+    city: z.enum(["fortworth", "mckinney", "arlington", "dallas"]).optional()
+      .describe('Jurisdiction: "fortworth" (default), "mckinney" (v0.3), or "arlington" (v0.3) are wired; "dallas" is refused -- Dallas permit feeds are stale/dead, not covered (see project plan).'),
     street: z.string().min(2).optional()
       .describe('Fort Worth only. Street name only, contains-match against Street_Name (address is componentized -- do not include house number or suffix). Example: "Main", not "500 Main St".'),
     addr_no: z.number().int().positive().optional()
       .describe("Fort Worth only. House/building number (Addr_No), exact match. Combine with `street` to scope to one address."),
     address: z.string().min(3).optional()
-      .describe('McKinney only, REQUIRED for city="mckinney" (the McKinney source has no date field, so browsing/newest-first listing is not possible -- search by address instead). Contains-match against the McKinney permit/plan address (ENT_MA1). Ignored for Fort Worth (use `street`/`addr_no` there).'),
+      .describe('McKinney (REQUIRED for city="mckinney" -- the McKinney source has no date field, so browsing/newest-first listing is not possible there) or Arlington (optional). Contains-match against the permit address (McKinney: ENT_MA1; Arlington: FOLDERNAME). Ignored for Fort Worth (use `street`/`addr_no` there).'),
     permit_type: z.string().min(2).optional()
-      .describe('Free text, contains-match against Permit_Type / Permit_SubType / Permit_Category (Fort Worth) or Work Class (McKinney), e.g. "electrical", "residential building", "remodel".'),
+      .describe('Free text, contains-match against Permit_Type / Permit_SubType / Permit_Category (Fort Worth), Work Class (McKinney), or FOLDERTYPE/WORKDESC (Arlington), e.g. "electrical", "residential building", "remodel".'),
     status: z.string().min(2).optional()
-      .describe('Free text, contains-match against Current_Status (Fort Worth) or ENT_STATUS (McKinney), e.g. "issued", "finaled", "in review".'),
+      .describe('Free text, contains-match against Current_Status (Fort Worth), ENT_STATUS (McKinney), or STATUSDESC (Arlington), e.g. "issued", "finaled", "in review".'),
     since_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
-      .describe("Fort Worth only. ISO date (YYYY-MM-DD); only permits filed on/after it (File_Date). Ignored (with a note) for city=\"mckinney\", which has no date field. Omit for the most recent permits regardless of date."),
+      .describe("Fort Worth/Arlington. ISO date (YYYY-MM-DD); only permits filed/issued on/after it (File_Date / ISSUEDATE). Ignored (with a note) for city=\"mckinney\", which has no date field. Omit for the most recent permits regardless of date."),
     limit: z.number().int().min(1).max(100).default(25).describe("Max results (default 25)."),
     cursor: z.string().optional().describe("Opaque pagination cursor from a previous call."),
   },
@@ -72,9 +88,12 @@ export const dfwPermits = {
     if (city === "mckinney") {
       return handleMcKinney({ address, permit_type, status, since_date, limit, cursor });
     }
+    if (city === "arlington") {
+      return handleArlington({ address, permit_type, status, since_date, limit, cursor });
+    }
     if (city && city !== "fortworth") {
       return refusal(
-        'Not covered: Fort Worth or McKinney only (Dallas not yet wired -- see project plan). Omit `city`, or set city="fortworth" or city="mckinney".',
+        'Not covered: Fort Worth, McKinney, or Arlington only (Dallas not yet wired -- see project plan). Omit `city`, or set city="fortworth", city="mckinney", or city="arlington".',
         { city, street, addr_no, permit_type, status, since_date }
       );
     }
@@ -276,6 +295,135 @@ function formatMcKinneyResults(p, nextCursor) {
   lines.push(
     "---",
     `Source: ${MCK_SOURCE_LABEL} (${MCK_SOURCE_URL})`,
+    ATTRIBUTION_TAG
+  );
+  return lines.join("\n");
+}
+
+// --- Arlington branch (v0.3) -------------------------------------------
+
+async function handleArlington({ address, permit_type, status, since_date, limit, cursor }) {
+  const entry = requireVerified(ARCGIS.arlingtonPermits, ARL_ENTRY_LABEL);
+
+  const whereParts = [];
+  if (address) whereParts.push(likeClause("FOLDERNAME", address));
+  if (permit_type) {
+    whereParts.push(
+      `(${likeClause("FOLDERTYPE", permit_type)} OR ${likeClause("WORKDESC", permit_type)} OR ${likeClause("SUBDESC", permit_type)})`
+    );
+  }
+  if (status) whereParts.push(likeClause("STATUSDESC", status));
+  if (since_date) whereParts.push(`ISSUEDATE >= TIMESTAMP '${since_date} 00:00:00'`);
+  const where = whereParts.length ? whereParts.join(" AND ") : "1=1";
+
+  const pageSize = limit ?? 25;
+  const offset = decodeCursor(cursor)?.offset ?? 0;
+
+  const rows = await queryLayer(entry.url, {
+    where,
+    outFields: [
+      "FOLDERTYPE", "FOLDERYEAR", "FOLDERSEQUENCE", "STATUSDESC", "ISSUEDATE",
+      "FINALDATE", "SUBDESC", "WORKDESC", "FOLDERNAME",
+      "ConstructionValuationDeclared", "MainUse",
+    ],
+    resultRecordCount: pageSize + 1,
+    resultOffset: offset,
+    orderByFields: "ISSUEDATE DESC",
+    returnGeometry: false,
+  });
+
+  const hasMore = rows.length > pageSize;
+  const page = (hasMore ? rows.slice(0, pageSize) : rows).map(normalizeArlington);
+  const nextCursor = hasMore ? encodeCursor(offset + pageSize) : null;
+
+  const payload = {
+    query: { city: "arlington", address, permit_type, status, since_date },
+    count: page.length,
+    results: page,
+    nextCursor,
+    offset,
+  };
+
+  return {
+    content: [
+      { type: "text", text: formatArlingtonResults(payload, nextCursor) },
+      { type: "text", text: JSON.stringify(payload, null, 2) },
+    ],
+  };
+}
+
+// No single "permit number" field is published -- synthesize a readable
+// display ID from FOLDERTYPE+FOLDERYEAR+FOLDERSEQUENCE (e.g. "CP22-062954").
+// Never presented as an official permit number, just a stable display ID.
+function buildArlingtonPermitId(a) {
+  const parts = [a.FOLDERTYPE, a.FOLDERYEAR].filter((v) => v !== null && v !== undefined && v !== "");
+  const prefix = parts.join("");
+  return a.FOLDERSEQUENCE ? `${prefix}-${a.FOLDERSEQUENCE}` : orNull(prefix || null);
+}
+
+function normalizeArlington(a) {
+  return {
+    permit_id: buildArlingtonPermitId(a),
+    permit_type: orNull(a.FOLDERTYPE),
+    work_description: orNull(a.WORKDESC),
+    sub_description: orNull(a.SUBDESC),
+    status: orNull(a.STATUSDESC),
+    issue_date: epochToDate(a.ISSUEDATE),
+    final_date: epochToDate(a.FINALDATE),
+    address: orNull(a.FOLDERNAME),
+    valuation: parseJobValue(a.ConstructionValuationDeclared),
+    main_use: orNull(a.MainUse),
+    source: ARL_SOURCE_LABEL,
+    source_url: ARL_SOURCE_URL,
+  };
+}
+
+function resultBlockArlington(r) {
+  const title = [r.permit_id ?? "(no permit id)", "--", r.permit_type ?? "Permit"].join(" ");
+  const lines = [`## ${title}`];
+  const meta = [];
+  if (r.status) meta.push(`**Status:** ${r.status}`);
+  if (r.issue_date) meta.push(`**Issued:** ${r.issue_date}`);
+  if (r.final_date) meta.push(`**Final:** ${r.final_date}`);
+  if (meta.length) lines.push(`- ${meta.join("  |  ")}`);
+  if (r.address) lines.push(`- **Address:** ${r.address}`);
+  if (r.valuation !== null) lines.push(`- **Valuation:** $${r.valuation.toLocaleString("en-US")}`);
+  if (r.main_use) lines.push(`- **Main use:** ${r.main_use}`);
+  if (r.sub_description) lines.push(`- **Sub type:** ${r.sub_description}`);
+  if (r.work_description) lines.push(`> ${truncated(r.work_description)}`);
+  lines.push(`- **Source:** ${r.source} -- ${r.source_url}`);
+  return lines.join("\n");
+}
+
+function formatArlingtonResults(p, nextCursor) {
+  const q = p.query;
+  const parts = [];
+  if (q.address) parts.push(`address="${q.address}"`);
+  if (q.permit_type) parts.push(`type=${q.permit_type}`);
+  if (q.status) parts.push(`status=${q.status}`);
+  if (q.since_date) parts.push(`since ${q.since_date}`);
+
+  const lines = [
+    `# Arlington Permits: ${parts.join(", ") || "recent"} -- ${p.count} permit${p.count === 1 ? "" : "s"}`,
+    "> Coverage: City of Arlington only (issued permits; a separate Permit Applications layer exists but is not wired).",
+    "",
+  ];
+
+  if (p.count === 0) {
+    lines.push("No permits matched. Try a broader `address`, or omit `since_date`.", "");
+  }
+
+  for (const r of p.results) {
+    lines.push(resultBlockArlington(r), "");
+  }
+
+  if (nextCursor) {
+    lines.push(`*More results available. Re-call with \`cursor: "${nextCursor}"\`.*`, "");
+  }
+
+  lines.push(
+    "---",
+    `Source: ${ARL_SOURCE_LABEL} (${ARL_SOURCE_URL})`,
     ATTRIBUTION_TAG
   );
   return lines.join("\n");

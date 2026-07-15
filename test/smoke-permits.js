@@ -32,6 +32,16 @@ try {
   if (!mckMissingAddr.structuredContent?.not_covered) throw new Error("mckinney without address should be refused, was not");
   console.log("  mckinney without address correctly refused (not_covered=true)");
 
+  const arlStart = Date.now();
+  const arlRes = await dfwPermits.handler({ city: "arlington", address: "4501 W Pleasant Ridge Road", limit: 5 });
+  if (arlRes.isError) throw new Error(arlRes.content[0].text.slice(0, 300));
+  const arlJson = JSON.parse(arlRes.content[1].text);
+  if (!Array.isArray(arlJson.results)) throw new Error("arlington: no results array");
+  if (arlJson.count === 0) throw new Error('arlington: zero permits for "4501 W Pleasant Ridge Road" is implausible -- dataset may be stale or query broken');
+  console.log(`permits smoke: arlington address="4501 W Pleasant Ridge Road" -> ${arlJson.count} permits in ${Date.now() - arlStart}ms`);
+  const ar = arlJson.results[0];
+  console.log(`  sample: ${ar.permit_id} ${ar.permit_type} @ ${ar.address} issued ${ar.issue_date} status=${ar.status}`);
+
   console.log("OK");
   process.exit(0);
 } catch (err) {

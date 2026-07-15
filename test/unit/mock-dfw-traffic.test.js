@@ -60,6 +60,18 @@ function mockRowPoints(records, status = 200) {
     .persist();
 }
 
+function mockArlingtonRow(attrsList, status = 200) {
+  mockAgent
+    .get("https://gis2.arlingtontx.gov")
+    .intercept({ path: (p) => p.includes("/OD_Transportation/MapServer/9/query"), method: "GET" })
+    .reply(
+      status,
+      status === 200 ? { features: attrsList.map((attributes) => ({ attributes })) } : "server error",
+      { headers: { "content-type": "application/json" } }
+    )
+    .persist();
+}
+
 function mockAadt(attrsList) {
   mockAgent
     .get("https://services.arcgis.com")
@@ -105,6 +117,13 @@ const ROW_POINT_RECORD = {
   rowimprovementrepair: "Sidewalk",
 };
 
+const ARLINGTON_ROW_RECORD = {
+  Permit: "2026-026398-ROW", Status: "Issued", Sub: "New Service",
+  ScopeOfWork: "137 W I 20", ProjectStart: 1775710800000, ProjectEnd: 1778475600000,
+  ServiceProvider: "ONCOR || 2798943", ROWContractor: "Primoris(Carol Jackson) || 2748075",
+  Segment: "101-199 E INTERSTATE 20 HWY", UpdatedInGIS: 1784095231693,
+};
+
 // --- incidents -------------------------------------------------------------
 
 test("dfw_traffic: kind=incidents normalizes Fort Worth accident records", async () => {
@@ -128,25 +147,81 @@ test("dfw_traffic: kind=incidents with city=dallas is refused, no network call",
 
 // --- closures ----------------------------------------------------------
 
-test("dfw_traffic: kind=closures merges both ROW permit datasets", async () => {
+test("dfw_traffic: kind=closures merges both Dallas ROW permit datasets (+ Arlington, empty here)", async () => {
   mockRowLines([ROW_LINE_RECORD]);
   mockRowPoints([ROW_POINT_RECORD]);
+  mockArlingtonRow([]);
   const res = await dfwTraffic.handler({ kind: "closures", limit: 25 });
   const payload = JSON.parse(res.content[1].text);
   assert.equal(payload.count, 2);
   const types = payload.results.map((r) => r.geometry_type).sort();
   assert.deepEqual(types, ["line", "point"]);
   assert.ok(payload.results.every((r) => r.type === "closure"));
+  assert.ok(payload.results.every((r) => r.city === "dallas"));
+  // No Arlington rows made it into this page -- the approximated-ordering
+  // caveat must NOT appear (it would be a non-sequitur with no Arlington
+  // results to explain).
+  assert.ok(!payload.notes.some((n) => /approximat/i.test(n)));
 });
 
 test("dfw_traffic: kind=closures degrades gracefully when one Socrata dataset errors", async () => {
   mockRowLines([ROW_LINE_RECORD], 500);
   mockRowPoints([ROW_POINT_RECORD]);
+  mockArlingtonRow([]);
   const res = await dfwTraffic.handler({ kind: "closures", limit: 25 });
   const payload = JSON.parse(res.content[1].text);
   assert.equal(payload.count, 1);
   assert.equal(payload.results[0].geometry_type, "point");
   assert.ok(payload.notes.some((n) => n.includes("line permits") && n.includes("unavailable")));
+});
+
+// --- closures: Arlington (v0.3) -----------------------------------------
+
+test("dfw_traffic: kind=closures city=arlington queries only the Arlington ROW layer and normalizes fields", async () => {
+  mockArlingtonRow([ARLINGTON_ROW_RECORD]);
+  const res = await dfwTraffic.handler({ kind: "closures", city: "arlington", limit: 25 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  const r = payload.results[0];
+  assert.equal(r.type, "closure");
+  assert.equal(r.city, "arlington");
+  assert.equal(r.permit_number, "2026-026398-ROW");
+  assert.equal(r.status, "Issued");
+  assert.equal(r.location, "101-199 E INTERSTATE 20 HWY");
+  assert.equal(typeof r.requested_start, "string"); // ProjectStart -> requested_start (the closure window)
+  assert.equal(typeof r.updated, "string"); // UpdatedInGIS still in the JSON payload (informational, not sort key)
+  assert.match(res.content[0].text, /\[Arlington\]/);
+  assert.match(res.content[0].text, /Scheduled closure window/);
+  // The per-record "Last updated in GIS" line was removed from the markdown
+  // render -- UpdatedInGIS is a whole-table batch-sync stamp, not a
+  // per-record freshness signal, and printing it per-record was misleading.
+  assert.doesNotMatch(res.content[0].text, /Last updated in GIS/);
+  // A notes-array caveat must explain the approximated (permit-ID-derived)
+  // ordering whenever an Arlington closure is actually in the page.
+  assert.ok(payload.notes.some((n) => /approximat/i.test(n) && /Arlington/i.test(n)));
+  assert.match(res.content[0].text, /approximat/i);
+});
+
+test("dfw_traffic: kind=closures with city=fortworth is refused (not a closures city), no network call", async () => {
+  const res = await dfwTraffic.handler({ kind: "closures", city: "fortworth", limit: 25 });
+  assert.equal(res.structuredContent.not_covered, true);
+  assert.match(res.structuredContent.message, /Dallas \+ Arlington only/);
+});
+
+test("dfw_traffic: kind=closures merges Dallas + Arlington and labels each result's city", async () => {
+  mockRowLines([ROW_LINE_RECORD]);
+  mockRowPoints([ROW_POINT_RECORD]);
+  mockArlingtonRow([ARLINGTON_ROW_RECORD]);
+  const res = await dfwTraffic.handler({ kind: "closures", limit: 25 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 3);
+  const cities = new Set(payload.results.map((r) => r.city));
+  assert.ok(cities.has("dallas"));
+  assert.ok(cities.has("arlington"));
+  // Every closure result must be labeled with a city so a metro-wide merge
+  // never blurs which city a record belongs to.
+  assert.ok(payload.results.every((r) => r.city === "dallas" || r.city === "arlington"));
+  assert.match(res.content[0].text, /Dallas \+ Arlington/);
 });
 
 // --- counts --------------------------------------------------------------
@@ -212,6 +287,7 @@ test('dfw_traffic: kind=all merges incidents + closures, and notes counts/projec
   mockIncidents([FW_INCIDENTS[0]]);
   mockRowLines([ROW_LINE_RECORD]);
   mockRowPoints([ROW_POINT_RECORD]);
+  mockArlingtonRow([]);
   const res = await dfwTraffic.handler({ kind: "all", limit: 25 });
   const payload = JSON.parse(res.content[1].text);
   const types = new Set(payload.results.map((r) => r.type));

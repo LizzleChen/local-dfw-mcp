@@ -74,7 +74,7 @@ test("dfw_code_cases: normalizes Fort Worth code-violation records", async () =>
 test("dfw_code_cases: city=dallas is refused, no network call", async () => {
   const res = await dfwCodeCases.handler({ city: "dallas", address: "3419 N Main St" });
   assert.equal(res.structuredContent.not_covered, true);
-  assert.match(res.structuredContent.message, /Fort Worth or McKinney only/);
+  assert.match(res.structuredContent.message, /Fort Worth, McKinney, or Arlington only/);
   assert.equal(res.structuredContent.count, 0);
 });
 
@@ -134,9 +134,53 @@ test('dfw_code_cases: city="mckinney" queries the McKinney ArcGIS layer and norm
   assert.match(res.content[0].text, /Not a consumer report/i);
 });
 
-test("dfw_code_cases: city=dallas is still refused with mckinney also wired, no network call", async () => {
+test("dfw_code_cases: city=dallas is still refused with mckinney+arlington also wired, no network call", async () => {
   const res = await dfwCodeCases.handler({ city: "dallas", address: "3419 N Main St" });
   assert.equal(res.structuredContent.not_covered, true);
-  assert.match(res.structuredContent.message, /Fort Worth or McKinney only/);
+  assert.match(res.structuredContent.message, /Fort Worth, McKinney, or Arlington only/);
   assert.equal(res.structuredContent.count, 0);
+});
+
+// --- Arlington branch (v0.3) -------------------------------------------
+
+const ARLINGTON_CASE_ATTRS = {
+  OBJECTID: 116,
+  INDATE: "2025-02-18",
+  FINALDATE: "2025-05-29",
+  STATUSCODE: "Owner Abated",
+  VIOLDESCRIPTION: "Unclean Premises",
+  FOLDERNAME: "932 N COOPER STREET ",
+  LastUpdateAmanda: 1748537989000,
+};
+
+function mockArlingtonCodeCases(attrsList, status = 200) {
+  mockAgent
+    .get("https://gis2.arlingtontx.gov")
+    .intercept({ path: (p) => p.includes("/OD_Community/MapServer/6/query"), method: "GET" })
+    .reply(
+      status,
+      status === 200 ? { features: attrsList.map((attributes) => ({ attributes })) } : "server error",
+      { headers: { "content-type": "application/json" } }
+    )
+    .persist();
+}
+
+test('dfw_code_cases: city="arlington" queries the Arlington Code Complaint layer and normalizes fields', async () => {
+  mockArlingtonCodeCases([ARLINGTON_CASE_ATTRS]);
+  const res = await dfwCodeCases.handler({ city: "arlington", address: "Cooper Street", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  const r = payload.results[0];
+  assert.equal(r.case_id, "internal #116");
+  assert.equal(r.complaint_type, "Unclean Premises");
+  assert.equal(r.violation_status, "Owner Abated");
+  // FOLDERNAME is passed through as-is (raw, trailing-space-padded upstream).
+  assert.equal(r.address, "932 N COOPER STREET ");
+  assert.equal(r.created, "2025-02-18"); // INDATE string -> created
+  assert.equal(r.closed, "2025-05-29"); // FINALDATE string -> closed, NOT updated
+  assert.equal(typeof r.updated, "string"); // LastUpdateAmanda epoch -> updated
+  assert.match(res.content[0].text, /Arlington Code Cases/);
+  assert.match(res.content[0].text, /internal #116/);
+  assert.match(res.content[0].text, /\*\*Closed:\*\* 2025-05-29/);
+  assert.match(res.content[0].text, /Not a consumer report/i);
 });

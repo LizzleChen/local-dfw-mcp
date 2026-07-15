@@ -38,13 +38,13 @@ export const aboutTool = {
       `**Denton** (\`city: "denton"\`, sourced from Denton's CKAN open-data ` +
       `portal) as explicit-only overrides — never auto-detected from an ` +
       `address.\n` +
-      `- **Fort Worth + McKinney tools** (\`dfw_permits\`, \`dfw_code_cases\`) ` +
-      `cover **Fort Worth (default) and McKinney (\`city: "mckinney"\`)**, ` +
-      `sourced from each city's ArcGIS open-data hub. Any other city is ` +
-      `refused rather than queried against the wrong source. McKinney's ` +
-      `permits source has no date field, so \`dfw_permits\` requires ` +
-      `\`address\` for \`city: "mckinney"\` and cannot browse newest-first ` +
-      `there.\n` +
+      `- **Fort Worth + McKinney + Arlington tools** (\`dfw_permits\`, ` +
+      `\`dfw_code_cases\`) cover **Fort Worth (default), McKinney (\`city: ` +
+      `"mckinney"\`), and Arlington (\`city: "arlington"\`)**, sourced from ` +
+      `each city's ArcGIS open-data hub. Any other city is refused rather ` +
+      `than queried against the wrong source. McKinney's permits source has ` +
+      `no date field, so \`dfw_permits\` requires \`address\` for \`city: ` +
+      `"mckinney"\` and cannot browse newest-first there.\n` +
       `- **County / statewide tools** (\`dfw_fema_flood\`, \`dfw_tea_schools\`, ` +
       `\`dfw_nws_alerts\`, \`dfw_utility_providers\`, \`dfw_district_lookup\`, ` +
       `\`dfw_appraisal\`) ` +
@@ -54,14 +54,15 @@ export const aboutTool = {
       `- \`dfw_events\` covers select DFW city calendars (Dallas Parks & Rec, ` +
       `Garland, Frisco, Mesquite, McKinney) plus, with an optional Ticketmaster ` +
       `key, metro-wide concerts/sports/theater. \`dfw_traffic\` covers Fort ` +
-      `Worth real-time incidents, Dallas street/lane closures, and statewide ` +
-      `TxDOT traffic counts/road projects.\n` +
+      `Worth real-time incidents, Dallas + Arlington street/lane closures ` +
+      `(merged and labeled by city), and statewide TxDOT traffic counts/road ` +
+      `projects.\n` +
       `- Dallas building permits and code-compliance cases remain **not ` +
       `shipped** (the City of Dallas's public feeds for these are stale/dead); ` +
-      `Fort Worth's and McKinney's are shipped instead. Irving's permit/code/` +
-      `crime/events feeds froze 2025-02-28 (residential/code/police) or are ` +
-      `bot-blocked (events) and are also not shipped. \`dfw_property_360\` is ` +
-      `not yet built.\n\n` +
+      `Fort Worth's, McKinney's, and Arlington's are shipped instead. ` +
+      `Irving's permit/code/crime/events feeds froze 2025-02-28 (residential/` +
+      `code/police) or are bot-blocked (events) and are also not shipped. ` +
+      `\`dfw_property_360\` is not yet built.\n\n` +
       `## Disclaimers\n\n` +
       `- \`dfw_crime\`, \`dfw_code_cases\`, and \`dfw_appraisal\` are **not ` +
       `consumer reports** and must not be used for tenant, employment, or ` +

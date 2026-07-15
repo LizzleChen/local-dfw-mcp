@@ -12,8 +12,16 @@ import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
  *     (real-time-ish, small rolling table -- FORT WORTH ONLY, no other city
  *     publishes a live incident feed keyless).
  *   - closures: City of Dallas right-of-way (ROW) permits, Socrata -- street /
- *     lane work, DALLAS ONLY. Two datasets (line-segment "block range" permits
- *     and point "specific address" permits) fetched in parallel and merged.
+ *     lane work. Two datasets (line-segment "block range" permits and point
+ *     "specific address" permits) fetched in parallel and merged. v0.3 adds
+ *     City of Arlington ROW Permits Issued (ArcGIS, on-prem server) as a
+ *     THIRD closures sub-source -- Dallas + Arlington are merged by default
+ *     (no city filter); Arlington's `ProjectStart`/`ProjectEnd` are the
+ *     SCHEDULED work window and are often forward-dated to a future date --
+ *     not a staleness signal -- so that sub-source sorts/pages by the true
+ *     freshness field `UpdatedInGIS` instead. Every closure result now
+ *     carries a `city` field ("dallas" | "arlington") so a metro-wide merge
+ *     never blurs which city a record belongs to.
  *   - counts: TxDOT 5-Year Statewide AADT (annual traffic counts) by station,
  *     scoped to the 4 core counties. No road-name field on this layer -- do
  *     not imply road-name search works here.
@@ -41,6 +49,7 @@ const ROW_BASE = SODA.dallas.base;
 
 const INCIDENT_SOURCE = "City of Fort Worth -- Current Traffic Accidents";
 const CLOSURE_SOURCE = "City of Dallas -- Right-of-Way Permits";
+const ARL_CLOSURE_SOURCE = "City of Arlington -- ROW Permits Issued";
 const COUNT_SOURCE = "TxDOT -- 5-Year Statewide AADT Traffic Counts";
 const PROJECT_SOURCE = "TxDOT -- Projects Info";
 
@@ -49,20 +58,20 @@ export const dfwTraffic = {
   tier: "core",
   description: withAttributionTag(
     "DFW-area traffic: real-time incidents (Fort Worth only), street/lane closures " +
-      "from right-of-way permits (Dallas only), TxDOT annual traffic counts (AADT) by " +
-      "county, and TxDOT highway construction projects by county. Counties: Dallas, " +
-      "Tarrant, Collin, Denton. Default kind=all merges live incidents+closures only " +
-      "(counts/projects need an explicit kind)."
+      "from right-of-way permits (Dallas + Arlington, merged and labeled by city), " +
+      "TxDOT annual traffic counts (AADT) by county, and TxDOT highway construction " +
+      "projects by county. Counties: Dallas, Tarrant, Collin, Denton. Default kind=all " +
+      "merges live incidents+closures only (counts/projects need an explicit kind)."
   ),
   inputSchema: {
     kind: z.enum(["incidents", "closures", "counts", "projects", "all"]).default("all")
-      .describe('"incidents" (Fort Worth), "closures" (Dallas ROW permits), "counts" (TxDOT AADT), "projects" (TxDOT construction), or "all" (default: merges incidents+closures only).'),
-    city: z.enum(["fortworth", "dallas"]).optional()
-      .describe('Scopes incidents (fortworth only) / closures (dallas only). With kind="all", narrows the merge to just that city\'s subtype.'),
+      .describe('"incidents" (Fort Worth), "closures" (Dallas + Arlington ROW permits, merged), "counts" (TxDOT AADT), "projects" (TxDOT construction), or "all" (default: merges incidents+closures only).'),
+    city: z.enum(["fortworth", "dallas", "arlington"]).optional()
+      .describe('Scopes incidents (fortworth only) / closures (dallas or arlington). Omit with kind="closures" to merge both cities (each result is labeled with its `city`). With kind="all", narrows the merge to just that city\'s subtype.'),
     county: z.enum(["dallas", "tarrant", "collin", "denton"]).optional()
       .describe("Scopes counts/projects to one of the 4 core counties; omit to query all four."),
     search: z.string().optional()
-      .describe('Free text: matches street/cross-street/address for incidents & closures, matches highway number (e.g. "US 67") for projects. Not supported for counts (no road-name field on that layer) -- ignored with a note.'),
+      .describe('Free text: matches street/cross-street/address for incidents, address/location for closures (Arlington also matches its ScopeOfWork/Segment free-text fields, which do not reliably carry an address), or highway number (e.g. "US 67") for projects. Not supported for counts (no road-name field on that layer) -- ignored with a note.'),
     limit: z.number().int().min(1).max(100).default(25).describe("Max results (default 25)."),
     cursor: z.string().optional().describe("Opaque pagination cursor from a previous call."),
   },
@@ -73,9 +82,9 @@ export const dfwTraffic = {
         { kind, city, county, search }
       );
     }
-    if (kind === "closures" && city && city !== "dallas") {
+    if (kind === "closures" && city && city !== "dallas" && city !== "arlington") {
       return refusal(
-        "Not covered: street/lane closures (right-of-way permits) are Dallas only. Omit `city` or set city=\"dallas\".",
+        "Not covered: street/lane closures (right-of-way permits) are Dallas + Arlington only. Omit `city`, or set city=\"dallas\" or city=\"arlington\".",
         { kind, city, county, search }
       );
     }
@@ -114,6 +123,18 @@ export const dfwTraffic = {
     const page = pool.slice(offset, offset + pageSize).map(stripSortKey);
     const nextCursor = hasMore ? encodeCursor(offset + pageSize) : null;
 
+    // Arlington's ROW layer publishes no per-record issued/created date (see
+    // lib/sources.js `arlingtonRowPermits`) -- surface that in `notes`
+    // whenever an Arlington closure actually made it into this page, same
+    // mechanism as the AADT no-road-name note above.
+    if (page.some((r) => r.type === "closure" && r.city === "arlington")) {
+      notes.push(
+        "Arlington closures are ordered by an approximation derived from the " +
+          "permit ID's embedded year+sequence, not a true date -- that source " +
+          "publishes no per-record issued/created date."
+      );
+    }
+
     const payload = {
       query: { kind, city, county, search },
       count: page.length,
@@ -139,19 +160,25 @@ const SUBSOURCE_LABEL = {
   incidents: INCIDENT_SOURCE,
   closuresLines: `${CLOSURE_SOURCE} (line permits)`,
   closuresPoints: `${CLOSURE_SOURCE} (point permits)`,
+  closuresArlington: ARL_CLOSURE_SOURCE,
   counts: COUNT_SOURCE,
   projects: PROJECT_SOURCE,
 };
 
 function pickSubsources(kind, city) {
   if (kind === "incidents") return ["incidents"];
-  if (kind === "closures") return ["closuresLines", "closuresPoints"];
+  if (kind === "closures") {
+    if (city === "dallas") return ["closuresLines", "closuresPoints"];
+    if (city === "arlington") return ["closuresArlington"];
+    return ["closuresLines", "closuresPoints", "closuresArlington"]; // merge both cities
+  }
   if (kind === "counts") return ["counts"];
   if (kind === "projects") return ["projects"];
   // kind === "all"
   if (city === "fortworth") return ["incidents"];
   if (city === "dallas") return ["closuresLines", "closuresPoints"];
-  return ["incidents", "closuresLines", "closuresPoints"];
+  if (city === "arlington") return ["closuresArlington"];
+  return ["incidents", "closuresLines", "closuresPoints", "closuresArlington"];
 }
 
 function stripSortKey(item) {
@@ -213,6 +240,53 @@ const FETCHERS = {
       offset: 0,
     });
     return rows.map((r) => normalizeClosure(r, "point", ds.id));
+  },
+
+  async closuresArlington({ search, topN }) {
+    const entry = requireVerified(ARCGIS.arlingtonRowPermits, "dfw_traffic (closures/arlington)");
+    const whereParts = [];
+    if (search) {
+      // Segment is the closest analog to Dallas's locationnames block range;
+      // ScopeOfWork sometimes but not reliably carries an address (confirmed
+      // live -- some rows are a bare address, others multi-sentence work
+      // descriptions). Permit is also matched for exact/partial permit-ID lookups.
+      whereParts.push(
+        `(${likeClause("Segment", search)} OR ${likeClause("ScopeOfWork", search)} OR ${likeClause("Permit", search)})`
+      );
+    }
+    const where = whereParts.length ? whereParts.join(" AND ") : "1=1";
+    const rows = await queryLayer(entry.url, {
+      where,
+      outFields: [
+        "Permit", "Status", "Sub", "ScopeOfWork", "ProjectStart", "ProjectEnd",
+        "ServiceProvider", "ROWContractor", "Segment", "UpdatedInGIS",
+      ],
+      resultRecordCount: topN,
+      resultOffset: 0,
+      // DEVIATION FROM THE ORIGINAL PLAN, confirmed live: neither candidate
+      // "recency" field actually works.
+      //   - UpdatedInGIS turns out to be a whole-TABLE batch-sync timestamp:
+      //     live-verified 2026-07-15, all 23,971 rows fall within a
+      //     ~20-SECOND window (min 1784095212077ms, max 1784095231693ms) --
+      //     it cannot differentiate individual records at all.
+      //   - ProjectStart/ProjectEnd are the SCHEDULED work window and are
+      //     often forward-dated months into the future (confirmed live, up
+      //     to 2026-09) -- sorting by it (or merging it numerically against
+      //     Dallas's genuinely-current createddate) would rank far-future
+      //     scheduled work above today's real Dallas permits, an apples-to-
+      //     oranges comparison.
+      // This layer has NO created/issued-date field at all. Falls back, like
+      // dfw_permits' McKinney branch (no date field there either), to the
+      // Permit ID's embedded "YYYY-NNNNNN-ROW" sequence, which DOES increase
+      // monotonically with filing order (confirmed live). Order here by
+      // Permit DESC (roughly newest-filed first); the cross-source merge key
+      // (permitFilingSortKey below) derives a comparable epoch-scale proxy
+      // from the same pattern so it interleaves sanely with Dallas's real
+      // dates instead of using ProjectStart or UpdatedInGIS for that purpose.
+      orderByFields: "Permit DESC",
+      returnGeometry: false,
+    });
+    return rows.map((a) => normalizeArlingtonClosure(a, entry.url));
   },
 
   async counts({ county, topN }) {
@@ -290,6 +364,7 @@ function normalizeIncident(a, sourceUrl) {
 function normalizeClosure(r, geometryType, datasetId) {
   return {
     type: "closure",
+    city: "dallas",
     permit_number: orNull(r.externalfilenum),
     permit_type: orNull(r.permittype),
     category: orNull(r.commercialorresidential),
@@ -308,9 +383,80 @@ function normalizeClosure(r, geometryType, datasetId) {
     council_districts: orNull(r.council_districts),
     case_id: orNull(r.caseid),
     geometry_type: geometryType,
+    updated: null,
     source: CLOSURE_SOURCE,
     source_url: `${ROW_BASE}/d/${datasetId}`,
     sortKey: Date.parse(r.createddate) || 0,
+  };
+}
+
+// Permit format observed live: "YYYY-NNNNNN-ROW" (e.g. "2026-027119-ROW").
+// No created/issued-date field exists on this layer at all (confirmed via a
+// full field-list dump) -- the year+sequence embedded in the Permit ID is
+// the only per-record signal that increases monotonically with filing
+// order, mirroring how dfw_permits' McKinney branch already leans on its
+// case-number pattern when no date field exists. Used ONLY as an internal
+// merge sortKey (stripped before the response goes out, like every other
+// sortKey in this file) -- never displayed as a real date. Using the
+// forward-dated ProjectStart or the batch-synced UpdatedInGIS here would
+// have skewed the cross-source merge against Dallas's genuinely-dated rows
+// (see the closuresArlington fetcher comment above for the full reasoning).
+//
+// The raw sequence number alone is too small relative to a real epoch (a
+// bare `+seq` offset from Jan 1 is only ever a few minutes into the year --
+// it would sort every Arlington row before any real mid-year Dallas date).
+// Spread the sequence proportionally across the year instead: live-verified
+// 2026-07-15, the 2026 sequence had reached ~58,500 by day ~196 of the year
+// (~300/day) -- ASSUMED_ANNUAL_SEQ_CEILING extrapolates that rate to a full
+// year as a rough calibration constant, not a claimed exact count.
+const ASSUMED_ANNUAL_SEQ_CEILING = 110000;
+const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000;
+
+function permitFilingSortKey(permit) {
+  const m = /^(\d{4})-(\d+)/.exec(String(permit ?? ""));
+  if (!m) return 0;
+  const year = Number(m[1]);
+  const seq = Number(m[2]);
+  const yearStart = Date.UTC(year, 0, 1);
+  if (!Number.isFinite(seq)) return yearStart;
+  const fraction = Math.min(seq / ASSUMED_ANNUAL_SEQ_CEILING, 1);
+  return yearStart + fraction * MS_PER_YEAR;
+}
+
+// City of Arlington ROW Permits Issued. ProjectStart/ProjectEnd are the
+// SCHEDULED closure window and are often forward-dated to a future date
+// (confirmed live) -- rendered as the window, never mistaken for a recency
+// signal. UpdatedInGIS turned out (live-verified 2026-07-15) to be a
+// whole-table batch-sync timestamp shared by ~all 23,971 rows within a
+// ~20-second window, NOT a per-record last-modified field, so it is surfaced
+// as `updated` (informational) but NOT used for sorting -- see
+// permitFilingSortKey() above for what the sortKey actually uses.
+function normalizeArlingtonClosure(a, sourceUrl) {
+  return {
+    type: "closure",
+    city: "arlington",
+    permit_number: orNull(a.Permit),
+    permit_type: orNull(a.Sub),
+    category: null,
+    status: orNull(a.Status),
+    created: null,
+    requested_start: epochToIso(a.ProjectStart),
+    estimated_completion: epochToIso(a.ProjectEnd),
+    reason: null,
+    improvement_repair: null,
+    work_description: orNull(a.ScopeOfWork),
+    applicant_name: null,
+    applicant_company: orNull(a.ServiceProvider),
+    contractors: orNull(a.ROWContractor),
+    location: orNull(a.Segment),
+    specific_location: null,
+    council_districts: null,
+    case_id: null,
+    geometry_type: "line",
+    updated: epochToIso(a.UpdatedInGIS),
+    source: ARL_CLOSURE_SOURCE,
+    source_url: sourceUrl,
+    sortKey: permitFilingSortKey(a.Permit),
   };
 }
 
@@ -374,13 +520,18 @@ function refusal(message, query) {
 
 function coverageLine(kind, city) {
   if (kind === "incidents") return "Fort Worth only (real-time incidents)";
-  if (kind === "closures") return "Dallas only (right-of-way permits)";
+  if (kind === "closures") {
+    if (city === "dallas") return "Dallas only (right-of-way permits)";
+    if (city === "arlington") return "Arlington only (right-of-way permits)";
+    return "Dallas + Arlington (right-of-way permits, merged and labeled by city)";
+  }
   if (kind === "counts") return "Dallas, Tarrant, Collin, Denton counties (TxDOT AADT)";
   if (kind === "projects") return "Dallas, Tarrant, Collin, Denton counties (TxDOT projects)";
   // all
   if (city === "fortworth") return "Fort Worth incidents only";
   if (city === "dallas") return "Dallas closures only";
-  return "Fort Worth incidents + Dallas closures merged (counts/projects need an explicit kind)";
+  if (city === "arlington") return "Arlington closures only";
+  return "Fort Worth incidents + Dallas/Arlington closures merged (counts/projects need an explicit kind)";
 }
 
 function resultBlock(r) {
@@ -397,14 +548,31 @@ function resultBlock(r) {
     return lines.join("\n");
   }
   if (r.type === "closure") {
-    const lines = [`## Closure ${r.permit_number ?? ""} -- ${r.status ?? "?"}`.trim()];
+    const cityLabel = r.city === "arlington" ? "Arlington" : "Dallas";
+    const lines = [`## Closure ${r.permit_number ?? ""} -- ${r.status ?? "?"} [${cityLabel}]`.trim()];
     const meta = [];
     if (r.reason) meta.push(`**Reason:** ${r.reason}`);
     if (r.work_description) meta.push(`**Work:** ${r.work_description}`);
     if (meta.length) lines.push(`- ${meta.join("  |  ")}`);
     if (r.location) lines.push(`- **Location:** ${r.location} (${r.geometry_type})`);
     if (r.created) lines.push(`- **Created:** ${r.created}`);
-    if (r.estimated_completion) lines.push(`- **Est. completion:** ${r.estimated_completion}`);
+    if (r.city === "arlington") {
+      // ProjectStart/ProjectEnd are the SCHEDULED closure window and are
+      // often forward-dated to a future date -- present as a window, not a
+      // recency claim. `r.updated` (UpdatedInGIS) is deliberately NOT
+      // rendered here: live verification found it's a whole-TABLE batch-sync
+      // timestamp shared by ~all 23,971 rows within a ~20-second window, not
+      // a per-record freshness signal -- printing it per-record would read
+      // as "this record was last touched at HH:MM:SS," which is false. It's
+      // still present in the JSON payload (labeled `updated`) for callers
+      // that want the raw value, and the closures-notes caveat (added when
+      // an Arlington row is in the page) explains the approximated ordering.
+      if (r.requested_start || r.estimated_completion) {
+        lines.push(`- **Scheduled closure window:** ${r.requested_start ?? "?"} to ${r.estimated_completion ?? "?"}`);
+      }
+    } else if (r.estimated_completion) {
+      lines.push(`- **Est. completion:** ${r.estimated_completion}`);
+    }
     lines.push(`- **Source:** ${r.source} -- ${r.source_url}`);
     return lines.join("\n");
   }

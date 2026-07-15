@@ -92,7 +92,7 @@ test("dfw_permits: real work description passes through, rendered as quoted bloc
 test("dfw_permits: city=dallas is refused, no network call", async () => {
   const res = await dfwPermits.handler({ city: "dallas", street: "Main" });
   assert.equal(res.structuredContent.not_covered, true);
-  assert.match(res.structuredContent.message, /Fort Worth or McKinney only/);
+  assert.match(res.structuredContent.message, /Fort Worth, McKinney, or Arlington only/);
   assert.equal(res.structuredContent.count, 0);
 });
 
@@ -168,4 +168,54 @@ test('dfw_permits: city="mckinney" where clause always filters MODULE=PERMIT (PL
 
   await dfwPermits.handler({ city: "mckinney", address: "Virginia", limit: 5 });
   assert.match(capturedWhere, /UPPER\(MODULE\) = 'PERMIT'/);
+});
+
+// --- Arlington branch (v0.3) --------------------------------------------
+
+const ARLINGTON_PERMIT_ATTRS = {
+  FOLDERTYPE: "CP",
+  FOLDERYEAR: "25",
+  FOLDERSEQUENCE: "006792",
+  STATUSDESC: "Issued",
+  ISSUEDATE: 1784045563570,
+  FINALDATE: null,
+  SUBDESC: "Utility & Miscellaneous",
+  WORKDESC: "New Construction",
+  FOLDERNAME: "4501 W PLEASANT RIDGE ROAD",
+  ConstructionValuationDeclared: 175000.0,
+  MainUse: "Indoor/Outdoor Sport Complex",
+};
+
+function mockArlingtonPermits(attrsList, status = 200) {
+  mockAgent
+    .get("https://gis2.arlingtontx.gov")
+    .intercept({ path: (p) => p.includes("/OD_Property/MapServer/1/query"), method: "GET" })
+    .reply(
+      status,
+      status === 200 ? { features: attrsList.map((attributes) => ({ attributes })) } : "server error",
+      { headers: { "content-type": "application/json" } }
+    )
+    .persist();
+}
+
+test('dfw_permits: city="arlington" queries the Arlington Issued Permits layer and normalizes fields', async () => {
+  mockArlingtonPermits([ARLINGTON_PERMIT_ATTRS]);
+  const res = await dfwPermits.handler({ city: "arlington", address: "4501 W Pleasant Ridge", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  const r = payload.results[0];
+  assert.equal(r.permit_id, "CP25-006792");
+  assert.equal(r.status, "Issued");
+  assert.equal(r.address, "4501 W PLEASANT RIDGE ROAD");
+  assert.equal(r.valuation, 175000);
+  assert.equal(r.issue_date, "2026-07-14"); // epoch -> date
+  assert.match(res.content[0].text, /Arlington Permits/);
+});
+
+test("dfw_permits: city=arlington with no filters queries all recent issued permits, no address required", async () => {
+  mockArlingtonPermits([ARLINGTON_PERMIT_ATTRS]);
+  const res = await dfwPermits.handler({ city: "arlington", limit: 5 });
+  const payload = JSON.parse(res.content[1].text);
+  assert.equal(payload.count, 1);
+  assert.match(res.content[0].text, /issued permits/);
 });

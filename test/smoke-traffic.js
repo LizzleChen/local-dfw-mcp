@@ -37,8 +37,25 @@ for (const kind of KINDS) {
   }
 }
 
+// Arlington closures branch (v0.3) -- dedicated check since the generic loop
+// above uses the default (Dallas + Arlington merged) closures query, which
+// may not always surface an Arlington row on top.
+try {
+  const start = Date.now();
+  const res = await dfwTraffic.handler({ kind: "closures", city: "arlington", limit: 5 });
+  if (res.isError) throw new Error(res.content[0].text.slice(0, 200));
+  const json = JSON.parse(res.content[1].text);
+  if (!Array.isArray(json.results)) throw new Error("arlington: no results array");
+  if (json.count === 0) throw new Error("zero Arlington ROW closures is implausible -- dataset may be stale or query broken");
+  if (!json.results.every((r) => r.city === "arlington")) throw new Error("city=arlington scoping leaked non-Arlington rows");
+  console.log(`OK: closures city=arlington count=${json.count} sample=${json.results[0].permit_number} in ${Date.now() - start}ms`);
+} catch (err) {
+  failures++;
+  console.error(`FAIL (closures city=arlington): ${err?.message ?? err}`);
+}
+
 if (failures) {
-  console.error(`FAIL: ${failures}/${KINDS.length} traffic smoke case(s) failed`);
+  console.error(`FAIL: ${failures}/${KINDS.length + 1} traffic smoke case(s) failed`);
   process.exit(1);
 }
 console.log("OK");
