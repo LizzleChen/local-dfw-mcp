@@ -2,6 +2,7 @@ import { z } from "zod";
 import { sodaQuery, sodaTextEq } from "../../lib/soda.js";
 import { SODA, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { errorResult, noMatchResult } from "../../lib/register.js";
 
 /**
  * Adapted from local-austin-mcp's tea-schools.js (Apache-2.0). Same statewide
@@ -26,7 +27,9 @@ export const dfwTeaSchools = {
       "TARRANT, COLLIN, DENTON). Returns overall rating, sub-scores (Student " +
       "Achievement, School Progress, Closing the Gaps), enrollment, and " +
       "demographics. Does NOT map an address to its assigned schools — " +
-      "attendance zones are managed by individual ISDs. Source: Texas Education Agency."
+      "attendance zones are managed by individual ISDs. To find which ISD an " +
+      "address is in, call dfw_district_lookup first, then filter here by that " +
+      "district. Source: Texas Education Agency."
   ),
   inputSchema: {
     campus: z.string().min(2).optional()
@@ -45,7 +48,10 @@ export const dfwTeaSchools = {
     requireVerified(SODA.texas.teaRatings, "dfw_tea_schools");
     const { campus, district, county, rating, school_type, limit } = args;
     if (!campus && !district && !county) {
-      return errorContent("dfw_tea_schools requires at least one of: campus, district, or county.");
+      return errorResult("dfw_tea_schools requires at least one of: campus, district, or county.", {
+        reason: "missing_required_filter",
+        recovery: 'Retry with campus, district, or county (e.g. county:"Collin").',
+      });
     }
 
     const where = ["campus_number IS NOT NULL"];
@@ -64,10 +70,11 @@ export const dfwTeaSchools = {
 
     const results = rows.map(normalize);
     if (results.length === 0) {
-      return {
-        content: [{ type: "text", text: `No TEA campuses matched the filters. ${ATTRIBUTION_TAG}` }],
-        structuredContent: { query: args, count: 0, results: [] },
-      };
+      return noMatchResult("No TEA campuses matched the filters.", {
+        query: args,
+        recovery:
+          "Try a broader filter -- drop rating/school_type, or search by county or district name instead of campus.",
+      });
     }
 
     return {
@@ -118,10 +125,6 @@ function pctOrNull(v) {
   const n = numOrNull(v);
   if (n === null) return null;
   return Math.round(n * 1000) / 10;
-}
-
-function errorContent(text) {
-  return { content: [{ type: "text", text: `${text} ${ATTRIBUTION_TAG}` }], isError: true };
 }
 
 function formatResults(args, results) {

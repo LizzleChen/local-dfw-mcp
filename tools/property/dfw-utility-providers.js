@@ -2,6 +2,7 @@ import { z } from "zod";
 import { geocodeAddress } from "../../lib/geocode.js";
 import { lookupUtilityProviders, SOURCE_URL } from "../../lib/utility-ccn.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { errorResult } from "../../lib/register.js";
 
 /**
  * Adapted from local-austin-mcp's utility-providers.js (Apache-2.0). Same
@@ -34,10 +35,11 @@ export const dfwUtilityProviders = {
   async handler({ address }) {
     const geo = await geocodeAddress(address);
     if (!geo || typeof geo.lng !== "number" || typeof geo.lat !== "number") {
-      return {
-        content: [{ type: "text", text: `Could not geocode "${address}". Try including city + ZIP. ${ATTRIBUTION_TAG}` }],
-        isError: true,
-      };
+      return errorResult(`Could not geocode "${address}".`, {
+        reason: "geocode_failed",
+        query: { address },
+        recovery: 'Check the spelling and include city and ZIP (e.g. "6801 Warren Pkwy, Frisco, TX 75034").',
+      });
     }
 
     const providers = await lookupUtilityProviders(geo.lng, geo.lat);

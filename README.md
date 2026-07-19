@@ -63,6 +63,27 @@ Requires Node ≥ 20. That's it — restart your client and start asking.
 Plano, Arlington, Fort Worth, Irving, and other suburbs don't publish a usable
 calendar feed today — the tool says "not covered" instead of guessing.
 
+## How the tools chain
+
+There's no composed "property report" tool (yet) — there doesn't need to be.
+The tools share natural join keys: **address, lat/lon, parcel, council
+district, and ISD**, so your AI can chase a question across them:
+
+- **Moving to a house** — `dfw_appraisal` (what's it worth, who owns it) →
+  `dfw_fema_flood` (flood zone + insurance) → `dfw_district_lookup` (county,
+  council district, ISD) → `dfw_tea_schools` (rate that ISD's campuses) →
+  `dfw_crime` (incidents nearby) → `dfw_utility_providers` (who to call for
+  water/sewer).
+- **Development watch on a block** — `dfw_permits` (what's being built) →
+  `dfw_code_cases` (violations on the same address) → `dfw_311` (what
+  neighbors are reporting).
+- **Weekend planning** — `dfw_events` (what's on) → `dfw_traffic` (incidents
+  and closures on the way) → `dfw_nws_alerts` (weather worth knowing about).
+
+Ask the composite question ("we're thinking about buying near Frisco — check
+schools, flood risk, and what it's appraised at") and a capable client walks
+the chain itself.
+
 ## Optional setup
 
 Everything works out of the box. Two free keys unlock more:

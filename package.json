@@ -1,6 +1,6 @@
 {
   "name": "local-dfw-mcp",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Your AI's local guide to Dallas-Fort Worth: what's happening around here (city calendars + optional Ticketmaster concerts/sports/theater), 311 requests, crime, flood zone, schools, water/sewer provider, council district, county appraisal values — from authoritative city/county/state sources. No API keys required for the base install.",
   "main": "index.js",
   "type": "module",
@@ -13,6 +13,8 @@
     "tools/",
     "resources/",
     "README.md",
+    "CHANGELOG.md",
+    "changelog/",
     "LICENSE",
     "NOTICE"
   ],

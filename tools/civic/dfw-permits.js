@@ -3,6 +3,7 @@ import { queryLayer, likeClause } from "../../lib/arcgis.js";
 import { encodeCursor, decodeCursor } from "../../lib/soda.js";
 import { ARCGIS, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { refusalResult } from "../../lib/register.js";
 
 /**
  * dfw_permits -- new for local-dfw-mcp (v0.2 priority-4, Fort Worth-first per
@@ -92,9 +93,14 @@ export const dfwPermits = {
       return handleArlington({ address, permit_type, status, since_date, limit, cursor });
     }
     if (city && city !== "fortworth") {
-      return refusal(
+      return refusalResult(
         'Not covered: Fort Worth, McKinney, or Arlington only (Dallas not yet wired -- see project plan). Omit `city`, or set city="fortworth", city="mckinney", or city="arlington".',
-        { city, street, addr_no, permit_type, status, since_date }
+        {
+          query: { city, street, addr_no, permit_type, status, since_date },
+          recovery:
+            'Retry with city:"fortworth" (default), city:"mckinney", or city:"arlington". ' +
+            "Dallas permit feeds are stale/dead upstream -- say Dallas is not covered rather than guessing.",
+        }
       );
     }
 
@@ -155,12 +161,18 @@ export const dfwPermits = {
 
 async function handleMcKinney({ address, permit_type, status, since_date, limit, cursor }) {
   if (!address) {
-    return refusal(
+    return refusalResult(
       'dfw_permits (city="mckinney") requires `address` -- the McKinney ' +
         "Energov source publishes no date field, so newest-first " +
         "browsing/listing isn't possible there. Search by address instead " +
         '(contains-match, e.g. address:"216 W Virginia St").',
-      { city: "mckinney", address, permit_type, status, since_date }
+      {
+        query: { city: "mckinney", address, permit_type, status, since_date },
+        reason: "missing_required_filter",
+        recovery:
+          'Retry with address:"..." (contains-match). Date-based browsing is impossible for McKinney -- ' +
+          "the upstream layer has no date field.",
+      }
     );
   }
 
@@ -504,13 +516,6 @@ function normalize(a) {
     lng: loc?.lng ?? null,
     source: SOURCE_LABEL,
     source_url: SOURCE_URL,
-  };
-}
-
-function refusal(message, query) {
-  return {
-    content: [{ type: "text", text: `${message}\n\n---\n${ATTRIBUTION_TAG}` }],
-    structuredContent: { query, not_covered: true, count: 0, results: [], message },
   };
 }
 

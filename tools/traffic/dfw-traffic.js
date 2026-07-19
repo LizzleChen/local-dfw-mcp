@@ -3,6 +3,7 @@ import { queryLayer, likeClause } from "../../lib/arcgis.js";
 import { sodaQuery, encodeCursor, decodeCursor } from "../../lib/soda.js";
 import { ARCGIS, SODA, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { refusalResult } from "../../lib/register.js";
 
 /**
  * dfw_traffic -- new for local-dfw-mcp (v0.2 priority-2), not ported. Merges
@@ -61,7 +62,9 @@ export const dfwTraffic = {
       "from right-of-way permits (Dallas + Arlington, merged and labeled by city), " +
       "TxDOT annual traffic counts (AADT) by county, and TxDOT highway construction " +
       "projects by county. Counties: Dallas, Tarrant, Collin, Denton. Default kind=all " +
-      "merges live incidents+closures only (counts/projects need an explicit kind)."
+      "merges live incidents+closures only (counts/projects need an explicit kind). " +
+      "Arlington closures are ordered approximately (permit-ID sequence, flagged in notes) -- " +
+      "its source publishes no per-record date."
   ),
   inputSchema: {
     kind: z.enum(["incidents", "closures", "counts", "projects", "all"]).default("all")
@@ -77,15 +80,22 @@ export const dfwTraffic = {
   },
   async handler({ kind, city, county, search, limit, cursor }) {
     if (kind === "incidents" && city && city !== "fortworth") {
-      return refusal(
+      return refusalResult(
         "Not covered: real-time traffic incidents are Fort Worth only. Omit `city` or set city=\"fortworth\".",
-        { kind, city, county, search }
+        {
+          query: { kind, city, county, search },
+          recovery:
+            'Retry without city, or with city:"fortworth". For street/lane closures in Dallas or Arlington use kind:"closures".',
+        }
       );
     }
     if (kind === "closures" && city && city !== "dallas" && city !== "arlington") {
-      return refusal(
+      return refusalResult(
         "Not covered: street/lane closures (right-of-way permits) are Dallas + Arlington only. Omit `city`, or set city=\"dallas\" or city=\"arlington\".",
-        { kind, city, county, search }
+        {
+          query: { kind, city, county, search },
+          recovery: 'Retry without city (merges both), or with city:"dallas" or city:"arlington".',
+        }
       );
     }
 
@@ -510,13 +520,6 @@ function normalizeProject(a, sourceUrl) {
 // --- rendering -----------------------------------------------------------
 
 const COUNT_UNAVAILABLE = "_count unavailable_";
-
-function refusal(message, query) {
-  return {
-    content: [{ type: "text", text: `${message}\n\n---\n${ATTRIBUTION_TAG}` }],
-    structuredContent: { query, not_covered: true, count: 0, results: [], message },
-  };
-}
 
 function coverageLine(kind, city) {
   if (kind === "incidents") return "Fort Worth only (real-time incidents)";

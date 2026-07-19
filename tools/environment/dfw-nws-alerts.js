@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { geocodeAddress } from "../../lib/geocode.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
-import { retryFetch, upstreamErrorText } from "../../lib/retry.js";
+import { retryFetch } from "../../lib/retry.js";
+import { errorResult } from "../../lib/register.js";
 
 /**
  * Adapted from local-austin-mcp's austin-nws-alerts.js (Apache-2.0). Logic is
@@ -23,7 +24,8 @@ export const dfwNwsAlerts = {
       "flood, heat, freeze, fire weather) for a DFW location. Defaults to " +
       "downtown Dallas when no address is supplied. Returns severity, urgency, " +
       "headline, area, and expiration for each active alert covering the point. " +
-      "Source: National Weather Service (api.weather.gov)."
+      "This is CURRENT alerts only -- for a property's long-term flood ZONE use " +
+      "dfw_fema_flood instead. Source: National Weather Service (api.weather.gov)."
   ),
   inputSchema: {
     address: z.string().min(5).optional()
@@ -39,7 +41,12 @@ export const dfwNwsAlerts = {
     } else if (address) {
       const geo = await geocodeAddress(address);
       if (!geo) {
-        return { content: [{ type: "text", text: `Could not geocode address "${address}". ${ATTRIBUTION_TAG}` }], isError: true };
+        return errorResult(`Could not geocode address "${address}".`, {
+          reason: "geocode_failed",
+          query: { address },
+          recovery:
+            'Check the spelling and include city and ZIP (e.g. "1500 Marilla St, Dallas, TX 75201"), or pass lat + lng directly.',
+        });
       }
       usedLat = geo.lat; usedLng = geo.lng; matched_address = geo.matched_address;
     } else {
@@ -47,15 +54,12 @@ export const dfwNwsAlerts = {
     }
 
     const url = `${NWS_BASE}/alerts/active?point=${usedLat},${usedLng}`;
-    let res;
-    try {
-      res = await retryFetch(
-        (signal) => fetch(url, { headers: { "User-Agent": UA, Accept: "application/geo+json" }, signal }),
-        { source: "National Weather Service (api.weather.gov)", profile: "fast", url }
-      );
-    } catch (err) {
-      return { content: [{ type: "text", text: upstreamErrorText(err, { toolName: "dfw_nws_alerts" }) + `\n\n${ATTRIBUTION_TAG}` }], isError: true };
-    }
+    // UpstreamError propagates to wrapHandler's central catch, which renders
+    // upstreamErrorText + the reason/recovery contract.
+    const res = await retryFetch(
+      (signal) => fetch(url, { headers: { "User-Agent": UA, Accept: "application/geo+json" }, signal }),
+      { source: "National Weather Service (api.weather.gov)", profile: "fast", url }
+    );
     if (!res.ok) throw new Error(`NWS API rejected: ${res.status} ${res.statusText}`);
     const data = await res.json();
     const features = Array.isArray(data?.features) ? data.features : [];
@@ -98,7 +102,10 @@ function formatResults({ location, lat, lng, results }) {
     if (r.headline) lines.push(`> ${r.headline}`);
     if (r.area_desc) lines.push(`- **Area:** ${r.area_desc}`);
     if (r.onset || r.expires) lines.push(`- **Active:** ${r.onset ?? "now"} -> ${r.expires ?? "?"}`);
-    if (r.instruction) lines.push(`- **Instruction:** ${r.instruction.replace(/\n+/g, " ").slice(0, 400)}`);
+    if (r.instruction) {
+      const instruction = r.instruction.replace(/\n+/g, " ");
+      lines.push(`- **Instruction:** ${instruction.length > 400 ? `${instruction.slice(0, 400)}... (full text in the JSON payload)` : instruction}`);
+    }
     lines.push("");
   }
   lines.push("---", "Source: National Weather Service (api.weather.gov)", ATTRIBUTION_TAG);

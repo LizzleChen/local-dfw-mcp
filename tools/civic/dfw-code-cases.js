@@ -4,6 +4,7 @@ import { encodeCursor, decodeCursor } from "../../lib/soda.js";
 import { ARCGIS, requireVerified } from "../../lib/sources.js";
 import { streetPart } from "../../lib/metro-router.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { refusalResult } from "../../lib/register.js";
 
 /**
  * dfw_code_cases -- new for local-dfw-mcp (v0.2 priority-4, Fort Worth-first
@@ -83,9 +84,14 @@ export const dfwCodeCases = {
       return handleArlington({ address, complaint_type, status, since_date, limit, cursor });
     }
     if (city && city !== "fortworth") {
-      return refusal(
+      return refusalResult(
         'Not covered: Fort Worth, McKinney, or Arlington only (Dallas not yet wired -- see project plan). Omit `city`, or set city="fortworth", city="mckinney", or city="arlington".',
-        { city, address, complaint_type, status, since_date }
+        {
+          query: { city, address, complaint_type, status, since_date },
+          recovery:
+            'Retry with city:"fortworth" (default), city:"mckinney", or city:"arlington". ' +
+            "Dallas's code-case publication stalled 2025-01-31 -- say Dallas is not covered rather than guessing.",
+        }
       );
     }
 
@@ -402,13 +408,6 @@ function formatArlingtonResults(p, nextCursor) {
     ATTRIBUTION_TAG
   );
   return lines.join("\n");
-}
-
-function refusal(message, query) {
-  return {
-    content: [{ type: "text", text: `${message}\n\n---\n${ATTRIBUTION_TAG}` }],
-    structuredContent: { query, not_covered: true, count: 0, results: [], message },
-  };
 }
 
 function resultBlock(r) {

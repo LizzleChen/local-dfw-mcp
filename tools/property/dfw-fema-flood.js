@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { geocodeAddress, floodZoneAtPoint } from "../../lib/fema-flood.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { errorResult, noMatchResult } from "../../lib/register.js";
 
 /**
  * Adapted from local-austin-mcp's fema-flood.js tool (Apache-2.0). Logic is
@@ -13,14 +14,18 @@ export const dfwFemaFlood = {
     "Look up the FEMA flood zone for a DFW address. Returns the zone code (A, " +
       "AE, X, V, VE, etc.), Special Flood Hazard Area (SFHA) status, base flood " +
       "elevation, and a plain-English risk + insurance interpretation (Zone " +
-      "A/AE/V require federal flood insurance). Source: FEMA National Flood " +
+      "A/AE/V require federal flood insurance). Long-term zone mapping only -- " +
+      "for weather alerts happening now use dfw_nws_alerts; for the property's " +
+      "value/owner use dfw_appraisal. Source: FEMA National Flood " +
       "Hazard Layer (NFHL). Geocodes via U.S. Census."
   ),
   inputSchema: {
     address: z.string().min(3).optional()
       .describe('Full address. Example: "1500 Marilla St Dallas TX 75201". Either address or lat+long required.'),
-    latitude: z.number().min(-90).max(90).optional(),
-    longitude: z.number().min(-180).max(180).optional(),
+    latitude: z.number().min(-90).max(90).optional()
+      .describe("Latitude (WGS-84). Use with longitude to skip geocoding — checks the flood zone at exactly this point."),
+    longitude: z.number().min(-180).max(180).optional()
+      .describe("Longitude (WGS-84, negative in Texas). Use with latitude to skip geocoding."),
   },
   async handler({ address, latitude, longitude }) {
     let lat = latitude;
@@ -28,12 +33,19 @@ export const dfwFemaFlood = {
     let geocoded = null;
 
     if (lat === undefined || lon === undefined) {
-      if (!address) return errorContent("dfw_fema_flood requires either an address or lat+long.");
+      if (!address) {
+        return errorResult("dfw_fema_flood requires either an address or lat+long.", {
+          reason: "missing_required_filter",
+          recovery: 'Retry with address:"..." or with latitude + longitude.',
+        });
+      }
       geocoded = await geocodeAddress(address);
       if (!geocoded || geocoded.latitude === null) {
-        return {
-          content: [{ type: "text", text: `Could not geocode "${address}" via U.S. Census. Try including city + state, or supply lat/long directly. ${ATTRIBUTION_TAG}` }],
-        };
+        return errorResult(`Could not geocode "${address}" via U.S. Census.`, {
+          reason: "geocode_failed",
+          query: { address },
+          recovery: "Check the spelling and include city + state (ideally ZIP), or supply lat/long directly.",
+        });
       }
       lat = geocoded.latitude;
       lon = geocoded.longitude;
@@ -41,9 +53,14 @@ export const dfwFemaFlood = {
 
     const zone = await floodZoneAtPoint(lon, lat);
     if (!zone) {
-      return {
-        content: [{ type: "text", text: `No FEMA NFHL feature at (${lat.toFixed(6)}, ${lon.toFixed(6)}). This area may be unmapped or outside NFHL coverage. ${ATTRIBUTION_TAG}` }],
-      };
+      return noMatchResult(
+        `No FEMA NFHL feature at (${lat.toFixed(6)}, ${lon.toFixed(6)}). This area may be unmapped or outside NFHL coverage.`,
+        {
+          query: { address, latitude: lat, longitude: lon },
+          recovery:
+            "Verify the coordinates; if they are right, report that FEMA has not mapped this point rather than guessing a zone.",
+        }
+      );
     }
 
     return {
@@ -54,10 +71,6 @@ export const dfwFemaFlood = {
     };
   },
 };
-
-function errorContent(text) {
-  return { content: [{ type: "text", text: `${text} ${ATTRIBUTION_TAG}` }], isError: true };
-}
 
 function formatResults(address, geocoded, lat, lon, zone) {
   const lines = [`# FEMA Flood Zone: ${address ?? `(${lat.toFixed(6)}, ${lon.toFixed(6)})`}`, ""];

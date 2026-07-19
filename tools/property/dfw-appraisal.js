@@ -4,6 +4,7 @@ import { identifyAtPoint } from "../../lib/arcgis.js";
 import { cached } from "../../lib/cache.js";
 import { ARCGIS, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { errorResult, noMatchResult } from "../../lib/register.js";
 
 /**
  * dfw_appraisal -- county appraisal-district record (owner + values) for a DFW
@@ -35,9 +36,11 @@ export const dfwAppraisal = {
   ),
   inputSchema: {
     address: z.string().min(3).optional()
-      .describe('Full address. Example: "1500 Marilla St Dallas TX 75201". Either address or latitude+longitude required.'),
-    latitude: z.number().min(-90).max(90).optional(),
-    longitude: z.number().min(-180).max(180).optional(),
+      .describe('Full address. Example: "1500 Marilla St Dallas TX 75201". Either address or latitude+longitude required. Geocoding lands in the street right-of-way, so a single hit can occasionally be the NEIGHBOR\'s parcel — always check the returned situs address against the one you asked for before quoting values.'),
+    latitude: z.number().min(-90).max(90).optional()
+      .describe("Latitude (WGS-84). Use with longitude to skip geocoding. Place the point on the building rooftop, not the street centerline — the parcel lookup is point-in-polygon."),
+    longitude: z.number().min(-180).max(180).optional()
+      .describe("Longitude (WGS-84, negative in Texas). Use with latitude to skip geocoding."),
   },
   async handler({ address, latitude, longitude }) {
     let lat = latitude;
@@ -45,12 +48,19 @@ export const dfwAppraisal = {
     let geocoded = null;
 
     if (lat === undefined || lng === undefined) {
-      if (!address) return errorContent("dfw_appraisal requires either an address or latitude+longitude.");
+      if (!address) {
+        return errorResult("dfw_appraisal requires either an address or latitude+longitude.", {
+          reason: "missing_required_filter",
+          recovery: 'Retry with address:"..." or with latitude + longitude. There is no owner-name or free-text search.',
+        });
+      }
       geocoded = await cached(`geo:${address}`, 24 * 3600e3, () => geocodeAddress(address));
       if (!geocoded || typeof geocoded.lng !== "number" || typeof geocoded.lat !== "number") {
-        return {
-          content: [{ type: "text", text: `Could not geocode "${address}" via U.S. Census. Try including city + state, or supply latitude/longitude directly. ${ATTRIBUTION_TAG}` }],
-        };
+        return errorResult(`Could not geocode "${address}" via U.S. Census.`, {
+          reason: "geocode_failed",
+          query: { address },
+          recovery: "Check the spelling and include city + state (ideally ZIP), or supply latitude/longitude directly.",
+        });
       }
       lat = geocoded.lat;
       lng = geocoded.lng;
@@ -70,9 +80,15 @@ export const dfwAppraisal = {
     const parcels = raw.map(normalizeParcel);
 
     if (parcels.length === 0) {
-      return {
-        content: [{ type: "text", text: `No parcel found at (${lat.toFixed(6)}, ${lng.toFixed(6)})${address ? ` for "${address}"` : ""}. This point may be outside the four core DFW counties, in public right-of-way, or the geocode may have landed off-parcel — try a more specific address or supply latitude/longitude. ${ATTRIBUTION_TAG}` }],
-      };
+      return noMatchResult(
+        `No parcel found at (${lat.toFixed(6)}, ${lng.toFixed(6)})${address ? ` for "${address}"` : ""}. This point may be outside the four core DFW counties, in public right-of-way, or the geocode may have landed off-parcel.`,
+        {
+          query: { address, latitude: lat, longitude: lng },
+          recovery:
+            "Verified coverage is Dallas/Tarrant/Collin/Denton counties. Retry with a more specific address " +
+            "(city + ZIP), or supply latitude/longitude on the building rather than the street.",
+        }
+      );
     }
 
     const payload = {
@@ -90,10 +106,6 @@ export const dfwAppraisal = {
     };
   },
 };
-
-function errorContent(text) {
-  return { content: [{ type: "text", text: `${text} ${ATTRIBUTION_TAG}` }], isError: true };
-}
 
 // --- normalization -------------------------------------------------------
 

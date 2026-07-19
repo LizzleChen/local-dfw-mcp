@@ -3,6 +3,7 @@ import { geocodeAddress } from "../../lib/geocode.js";
 import { queryPointInPolygon } from "../../lib/arcgis.js";
 import { ARCGIS, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { errorResult } from "../../lib/register.js";
 
 /**
  * Adapted from local-austin-mcp's austin-district-lookup.js (Apache-2.0). Same
@@ -47,7 +48,10 @@ export const dfwDistrictLookup = {
     "Given a DFW street address, returns the districts/jurisdictions it falls " +
       "in: county (all 4 core counties), City of Dallas council district + " +
       "council member (City of Dallas only), whether it is inside City of Dallas " +
-      "limits, and school district (ISD). Pipeline: U.S. Census geocoder → " +
+      "limits, and school district (ISD). Call this FIRST for an unfamiliar " +
+      "address: it tells you whether the City-of-Dallas-only tools (dfw_311, " +
+      "dfw_crime's default path) apply, and its ISD feeds dfw_tea_schools' " +
+      "district filter. Pipeline: U.S. Census geocoder → " +
       "point-in-polygon against Dallas GIS and statewide Texas ArcGIS layers."
   ),
   inputSchema: {
@@ -57,10 +61,11 @@ export const dfwDistrictLookup = {
   async handler({ address }) {
     const geo = await geocodeAddress(address);
     if (!geo || typeof geo.lng !== "number") {
-      return {
-        content: [{ type: "text", text: `Could not geocode address "${address}". Try adding city/state/ZIP. ${ATTRIBUTION_TAG}` }],
-        isError: true,
-      };
+      return errorResult(`Could not geocode address "${address}".`, {
+        reason: "geocode_failed",
+        query: { address },
+        recovery: 'Check the spelling and include city and ZIP (e.g. "1500 Marilla St, Dallas, TX 75201").',
+      });
     }
 
     const results = {};
