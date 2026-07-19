@@ -102,7 +102,10 @@ function formatResults({ location, lat, lng, results }) {
     if (r.headline) lines.push(`> ${r.headline}`);
     if (r.area_desc) lines.push(`- **Area:** ${r.area_desc}`);
     if (r.onset || r.expires) lines.push(`- **Active:** ${r.onset ?? "now"} -> ${r.expires ?? "?"}`);
-    if (r.instruction) lines.push(`- **Instruction:** ${r.instruction.replace(/\n+/g, " ").slice(0, 400)}`);
+    if (r.instruction) {
+      const instruction = r.instruction.replace(/\n+/g, " ");
+      lines.push(`- **Instruction:** ${instruction.length > 400 ? `${instruction.slice(0, 400)}... (full text in the JSON payload)` : instruction}`);
+    }
     lines.push("");
   }
   lines.push("---", "Source: National Weather Service (api.weather.gov)", ATTRIBUTION_TAG);
