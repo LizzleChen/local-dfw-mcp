@@ -24,7 +24,7 @@
   "mcpName": "io.github.LizzleChen/local-dfw-mcp",
   "repository": {
     "type": "git",
-    "url": "https://github.com/LizzleChen/local-dfw-mcp.git"
+    "url": "git+https://github.com/LizzleChen/local-dfw-mcp.git"
   },
   "scripts": {
     "start": "node index.js",
