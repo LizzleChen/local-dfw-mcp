@@ -24,7 +24,8 @@ export const dfwNwsAlerts = {
       "flood, heat, freeze, fire weather) for a DFW location. Defaults to " +
       "downtown Dallas when no address is supplied. Returns severity, urgency, " +
       "headline, area, and expiration for each active alert covering the point. " +
-      "Source: National Weather Service (api.weather.gov)."
+      "This is CURRENT alerts only -- for a property's long-term flood ZONE use " +
+      "dfw_fema_flood instead. Source: National Weather Service (api.weather.gov)."
   ),
   inputSchema: {
     address: z.string().min(5).optional()

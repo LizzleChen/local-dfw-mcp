@@ -62,7 +62,9 @@ export const dfwTraffic = {
       "from right-of-way permits (Dallas + Arlington, merged and labeled by city), " +
       "TxDOT annual traffic counts (AADT) by county, and TxDOT highway construction " +
       "projects by county. Counties: Dallas, Tarrant, Collin, Denton. Default kind=all " +
-      "merges live incidents+closures only (counts/projects need an explicit kind)."
+      "merges live incidents+closures only (counts/projects need an explicit kind). " +
+      "Arlington closures are ordered approximately (permit-ID sequence, flagged in notes) -- " +
+      "its source publishes no per-record date."
   ),
   inputSchema: {
     kind: z.enum(["incidents", "closures", "counts", "projects", "all"]).default("all")

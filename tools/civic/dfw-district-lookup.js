@@ -48,7 +48,10 @@ export const dfwDistrictLookup = {
     "Given a DFW street address, returns the districts/jurisdictions it falls " +
       "in: county (all 4 core counties), City of Dallas council district + " +
       "council member (City of Dallas only), whether it is inside City of Dallas " +
-      "limits, and school district (ISD). Pipeline: U.S. Census geocoder → " +
+      "limits, and school district (ISD). Call this FIRST for an unfamiliar " +
+      "address: it tells you whether the City-of-Dallas-only tools (dfw_311, " +
+      "dfw_crime's default path) apply, and its ISD feeds dfw_tea_schools' " +
+      "district filter. Pipeline: U.S. Census geocoder → " +
       "point-in-polygon against Dallas GIS and statewide Texas ArcGIS layers."
   ),
   inputSchema: {

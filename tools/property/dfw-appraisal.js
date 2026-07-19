@@ -36,9 +36,11 @@ export const dfwAppraisal = {
   ),
   inputSchema: {
     address: z.string().min(3).optional()
-      .describe('Full address. Example: "1500 Marilla St Dallas TX 75201". Either address or latitude+longitude required.'),
-    latitude: z.number().min(-90).max(90).optional(),
-    longitude: z.number().min(-180).max(180).optional(),
+      .describe('Full address. Example: "1500 Marilla St Dallas TX 75201". Either address or latitude+longitude required. Geocoding lands in the street right-of-way, so a single hit can occasionally be the NEIGHBOR\'s parcel — always check the returned situs address against the one you asked for before quoting values.'),
+    latitude: z.number().min(-90).max(90).optional()
+      .describe("Latitude (WGS-84). Use with longitude to skip geocoding. Place the point on the building rooftop, not the street centerline — the parcel lookup is point-in-polygon."),
+    longitude: z.number().min(-180).max(180).optional()
+      .describe("Longitude (WGS-84, negative in Texas). Use with latitude to skip geocoding."),
   },
   async handler({ address, latitude, longitude }) {
     let lat = latitude;

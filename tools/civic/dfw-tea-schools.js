@@ -27,7 +27,9 @@ export const dfwTeaSchools = {
       "TARRANT, COLLIN, DENTON). Returns overall rating, sub-scores (Student " +
       "Achievement, School Progress, Closing the Gaps), enrollment, and " +
       "demographics. Does NOT map an address to its assigned schools — " +
-      "attendance zones are managed by individual ISDs. Source: Texas Education Agency."
+      "attendance zones are managed by individual ISDs. To find which ISD an " +
+      "address is in, call dfw_district_lookup first, then filter here by that " +
+      "district. Source: Texas Education Agency."
   ),
   inputSchema: {
     campus: z.string().min(2).optional()
