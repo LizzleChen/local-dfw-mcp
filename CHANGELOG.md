@@ -4,6 +4,13 @@ Assembled from the per-version files in [`changelog/`](changelog/), which
 carry the full "why" behind each release (dead upstream datasets, frozen
 city pipelines, source-selection rationale). Newest first.
 
+## [v0.2.4](changelog/v0.2.4.md) — 2026-07-18
+
+Agent-ergonomics release: machine-readable error contracts
+(`reason` + `recovery` on every error path), full `.describe()` coverage
+with behavioral caveats, cross-tool routing in tool descriptions, README
+chain documentation, and this changelog convention. No new data sources.
+
 ## [v0.2.3](changelog/v0.2.3.md) — 2026-07-18
 
 Fort Worth + metro-city release: new `dfw_permits` and `dfw_code_cases`
