@@ -5,6 +5,7 @@ import { datastoreSearchSql, ilikeClause, sqlEscape } from "../../lib/ckan.js";
 import { SODA, ARCGIS, CKAN, requireVerified } from "../../lib/sources.js";
 import { resolveCityJurisdiction, streetPart } from "../../lib/metro-router.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { refusalResult } from "../../lib/register.js";
 
 /**
  * City of Dallas police incidents (Socrata qv6i-rri7, "Police Incidents",
@@ -70,14 +71,24 @@ export const dfwCrime = {
 
     const jur = await resolveCityJurisdiction({ address, city }, "dallas");
     if (!jur.ok) {
-      return refusal(jur.message, { address, offense, since_date });
+      return refusalResult(jur.message, {
+        query: { address, offense, since_date },
+        recovery:
+          'If the address is in Fort Worth or Denton, retry with city:"fortworth" or city:"denton" explicitly ' +
+          '(never auto-detected from the address). If it really is inside City of Dallas limits, retry with ' +
+          'city:"dallas" to override detection. Other cities are not covered -- say so.',
+      });
     }
 
     if (!address && !offense) {
-      return refusal(
+      return refusalResult(
         "dfw_crime requires at least one of: address or offense (an unfiltered " +
           "query over the full dataset would be too large).",
-        { address, offense }
+        {
+          query: { address, offense },
+          reason: "missing_required_filter",
+          recovery: "Retry with at least one of: address or offense.",
+        }
       );
     }
 
@@ -134,10 +145,14 @@ async function handleFortWorth({ address, offense, since_date, limit, cursor }) 
   const entry = requireVerified(ARCGIS.fortWorthCrime, "dfw_crime (fortworth)");
 
   if (!address && !offense) {
-    return refusal(
+    return refusalResult(
       'dfw_crime (city="fortworth") requires at least one of: address or offense ' +
         "(an unfiltered query over the full dataset would be too large).",
-      { address, offense, city: "fortworth" }
+      {
+        query: { address, offense, city: "fortworth" },
+        reason: "missing_required_filter",
+        recovery: "Retry with at least one of: address or offense.",
+      }
     );
   }
 
@@ -270,10 +285,14 @@ async function handleDenton({ address, offense, since_date, limit, cursor }) {
   const entry = requireVerified(CKAN.denton.crime, "dfw_crime (denton)");
 
   if (!address && !offense) {
-    return refusal(
+    return refusalResult(
       'dfw_crime (city="denton") requires at least one of: address or offense ' +
         "(an unfiltered query over the full dataset would be too large).",
-      { address, offense, city: "denton" }
+      {
+        query: { address, offense, city: "denton" },
+        reason: "missing_required_filter",
+        recovery: "Retry with at least one of: address or offense.",
+      }
     );
   }
 
@@ -399,13 +418,6 @@ function normalize(r) {
 function dateOnly(s) {
   if (!s) return null;
   return String(s).slice(0, 10);
-}
-
-function refusal(message, query) {
-  return {
-    content: [{ type: "text", text: `${message}\n\n---\n${ATTRIBUTION_TAG}` }],
-    structuredContent: { query, not_covered: true, count: 0, results: [], message },
-  };
 }
 
 function formatResults(p, jur, nextCursor) {

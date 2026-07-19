@@ -3,6 +3,7 @@ import { sodaQuery, sodaAddressLike, sodaTextLike, sodaTextEqCI, encodeCursor, d
 import { SODA, requireVerified } from "../../lib/sources.js";
 import { resolveCityJurisdiction, streetPart } from "../../lib/metro-router.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { refusalResult } from "../../lib/register.js";
 
 /**
  * City of Dallas 311 service requests (Socrata d7e7-envw, "311 Service Requests
@@ -44,14 +45,23 @@ export const dfw311 = {
     // Hard rule: never silently query City of Dallas data for a wrong-city address.
     const jur = await resolveCityJurisdiction({ address, city }, "dallas");
     if (!jur.ok) {
-      return refusal(jur.message, { address, service_type, status, since_year });
+      return refusalResult(jur.message, {
+        query: { address, service_type, status, since_year },
+        recovery:
+          'If the address really is inside City of Dallas limits, retry with city:"dallas" to override detection. ' +
+          "No suburb 311 source is wired -- tell the user that city is not covered instead of querying.",
+      });
     }
 
     if (!address && !service_type && !status) {
-      return refusal(
+      return refusalResult(
         "dfw_311 requires at least one of: address, service_type, or status " +
           "(an unfiltered query over the full dataset would be too large).",
-        { address, service_type, status }
+        {
+          query: { address, service_type, status },
+          reason: "missing_required_filter",
+          recovery: "Retry with at least one of: address, service_type, or status.",
+        }
       );
     }
 
@@ -132,13 +142,6 @@ function normalize(r) {
 function dateOnly(s) {
   if (!s) return null;
   return String(s).slice(0, 10);
-}
-
-function refusal(message, query) {
-  return {
-    content: [{ type: "text", text: `${message}\n\n---\n${ATTRIBUTION_TAG}` }],
-    structuredContent: { query, not_covered: true, count: 0, results: [], message },
-  };
 }
 
 function formatResults(p, jur, nextCursor) {

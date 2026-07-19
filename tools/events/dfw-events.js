@@ -4,7 +4,7 @@ import { fetchCityCalendar } from "../../lib/civicplus-rss.js";
 import { searchTicketmaster, ticketmasterKey, TM_SEGMENTS } from "../../lib/ticketmaster.js";
 import { encodeCursor, decodeCursor } from "../../lib/soda.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
-import { upstreamErrorText } from "../../lib/retry.js";
+import { refusalResult } from "../../lib/register.js";
 
 /**
  * dfw_events -- "what's happening around here". Two source tiers merged
@@ -72,9 +72,15 @@ export const dfwEvents = {
     if (wantCommercial) {
       if (!ticketmasterKey()) {
         if (category in TM_SEGMENTS) {
-          return refusal(
+          return refusalResult(
             `dfw_events category "${category}" needs the Ticketmaster tier. ${KEYLESS_HINT}`,
-            { city, category, search, date_from, date_to }
+            {
+              query: { city, category, search, date_from, date_to },
+              reason: "missing_api_key",
+              recovery:
+                "Set DFW_TICKETMASTER_API_KEY (free: developer.ticketmaster.com) to unlock " +
+                'concerts/sports/theater, or retry with category:"city" for keyless city calendars.',
+            }
           );
         }
         notes.push(KEYLESS_HINT);
@@ -89,11 +95,9 @@ export const dfwEvents = {
           events.push(...(city === "all" ? tm : tm.filter((e) => e.city === city)));
         } catch (err) {
           if (category in TM_SEGMENTS) {
-            // Ticketmaster is the only source for this category -- surface the error.
-            return {
-              content: [{ type: "text", text: `${upstreamErrorText(err, { toolName: "dfw_events" })}\n\n${ATTRIBUTION_TAG}` }],
-              isError: true,
-            };
+            // Ticketmaster is the only source for this category -- let the
+            // central wrapHandler catch format it (text + reason/recovery contract).
+            throw err;
           }
           notes.push(`Ticketmaster tier unavailable (${String(err?.message ?? err).slice(0, 120)}); showing city calendars only.`);
         }
@@ -148,13 +152,6 @@ function matchesSearch(e, search) {
   if (!search) return true;
   const hay = `${e.title ?? ""} ${e.description ?? ""} ${e.location ?? ""}`.toLowerCase();
   return hay.includes(search.toLowerCase());
-}
-
-function refusal(message, query) {
-  return {
-    content: [{ type: "text", text: `${message}\n\n---\n${ATTRIBUTION_TAG}` }],
-    structuredContent: { query, not_covered: true, count: 0, results: [], message },
-  };
 }
 
 function formatResults(p) {

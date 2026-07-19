@@ -4,6 +4,7 @@ import { identifyAtPoint } from "../../lib/arcgis.js";
 import { cached } from "../../lib/cache.js";
 import { ARCGIS, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { errorResult, noMatchResult } from "../../lib/register.js";
 
 /**
  * dfw_appraisal -- county appraisal-district record (owner + values) for a DFW
@@ -45,12 +46,19 @@ export const dfwAppraisal = {
     let geocoded = null;
 
     if (lat === undefined || lng === undefined) {
-      if (!address) return errorContent("dfw_appraisal requires either an address or latitude+longitude.");
+      if (!address) {
+        return errorResult("dfw_appraisal requires either an address or latitude+longitude.", {
+          reason: "missing_required_filter",
+          recovery: 'Retry with address:"..." or with latitude + longitude. There is no owner-name or free-text search.',
+        });
+      }
       geocoded = await cached(`geo:${address}`, 24 * 3600e3, () => geocodeAddress(address));
       if (!geocoded || typeof geocoded.lng !== "number" || typeof geocoded.lat !== "number") {
-        return {
-          content: [{ type: "text", text: `Could not geocode "${address}" via U.S. Census. Try including city + state, or supply latitude/longitude directly. ${ATTRIBUTION_TAG}` }],
-        };
+        return errorResult(`Could not geocode "${address}" via U.S. Census.`, {
+          reason: "geocode_failed",
+          query: { address },
+          recovery: "Check the spelling and include city + state (ideally ZIP), or supply latitude/longitude directly.",
+        });
       }
       lat = geocoded.lat;
       lng = geocoded.lng;
@@ -70,9 +78,15 @@ export const dfwAppraisal = {
     const parcels = raw.map(normalizeParcel);
 
     if (parcels.length === 0) {
-      return {
-        content: [{ type: "text", text: `No parcel found at (${lat.toFixed(6)}, ${lng.toFixed(6)})${address ? ` for "${address}"` : ""}. This point may be outside the four core DFW counties, in public right-of-way, or the geocode may have landed off-parcel — try a more specific address or supply latitude/longitude. ${ATTRIBUTION_TAG}` }],
-      };
+      return noMatchResult(
+        `No parcel found at (${lat.toFixed(6)}, ${lng.toFixed(6)})${address ? ` for "${address}"` : ""}. This point may be outside the four core DFW counties, in public right-of-way, or the geocode may have landed off-parcel.`,
+        {
+          query: { address, latitude: lat, longitude: lng },
+          recovery:
+            "Verified coverage is Dallas/Tarrant/Collin/Denton counties. Retry with a more specific address " +
+            "(city + ZIP), or supply latitude/longitude on the building rather than the street.",
+        }
+      );
     }
 
     const payload = {
@@ -90,10 +104,6 @@ export const dfwAppraisal = {
     };
   },
 };
-
-function errorContent(text) {
-  return { content: [{ type: "text", text: `${text} ${ATTRIBUTION_TAG}` }], isError: true };
-}
 
 // --- normalization -------------------------------------------------------
 

@@ -3,6 +3,7 @@ import { geocodeAddress } from "../../lib/geocode.js";
 import { queryPointInPolygon } from "../../lib/arcgis.js";
 import { ARCGIS, requireVerified } from "../../lib/sources.js";
 import { ATTRIBUTION_TAG, withAttributionTag } from "../../lib/attribution.js";
+import { errorResult } from "../../lib/register.js";
 
 /**
  * Adapted from local-austin-mcp's austin-district-lookup.js (Apache-2.0). Same
@@ -57,10 +58,11 @@ export const dfwDistrictLookup = {
   async handler({ address }) {
     const geo = await geocodeAddress(address);
     if (!geo || typeof geo.lng !== "number") {
-      return {
-        content: [{ type: "text", text: `Could not geocode address "${address}". Try adding city/state/ZIP. ${ATTRIBUTION_TAG}` }],
-        isError: true,
-      };
+      return errorResult(`Could not geocode address "${address}".`, {
+        reason: "geocode_failed",
+        query: { address },
+        recovery: 'Check the spelling and include city and ZIP (e.g. "1500 Marilla St, Dallas, TX 75201").',
+      });
     }
 
     const results = {};
