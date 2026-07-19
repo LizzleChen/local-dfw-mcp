@@ -13,6 +13,8 @@
     "tools/",
     "resources/",
     "README.md",
+    "CHANGELOG.md",
+    "changelog/",
     "LICENSE",
     "NOTICE"
   ],
